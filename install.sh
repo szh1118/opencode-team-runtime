@@ -105,19 +105,15 @@ read_tty_line() {
   printf -v "$__var" '%s' "$answer"
 }
 
-read_tty_secret() {
-  local __var="$1" prompt="${2:-}" answer="" old=""
-  if ! tty_available; then
-    printf -v "$__var" '%s' ""
-    return 1
-  fi
-  [[ -n "$prompt" ]] && printf "%s" "$prompt" >&9
-  old="$(stty -g <&9 2>/dev/null || true)"
-  stty -echo <&9 2>/dev/null || true
-  IFS= read -r -u 9 answer || answer=""
-  [[ -n "$old" ]] && stty "$old" <&9 2>/dev/null || true
-  printf "\n" >&9
-  printf -v "$__var" '%s' "$answer"
+select_option() {
+  local prompt="$1"; local __var="$2"; local default="${3:-1}"; shift 3 || true
+  if ! tty_available; then printf -v "$__var" '%s' "$default"; return 0; fi
+  printf "%s\n" "$prompt" >&9
+  local i=1
+  for opt in "$@"; do printf "  %s) %s\n" "$i" "$opt" >&9; i=$((i+1)); done
+  local answer
+  read_tty_line answer "  [$default] " || true
+  printf -v "$__var" '%s' "${answer:-$default}"
 }
 
 choose_language() {
@@ -133,37 +129,18 @@ choose_language() {
     LANG_CHOICE="zh"
     return 0
   fi
-  printf "请选择安装语言 / Select installer language:\n  1) 中文\n  2) English\n" >&9
-  local answer
-  read_tty_line answer "> " || true
-  case "${answer:-1}" in
-    2|en|EN|English|english) LANG_CHOICE="en" ;;
+  local ans
+  select_option "请选择安装语言 / Select installer language:" ans "1" "中文" "English"
+  case "${ans:-1}" in
+    2) LANG_CHOICE="en" ;;
     *) LANG_CHOICE="zh" ;;
   esac
+  echo "" >&9
 }
 
 msg() {
   local zh="$1" en="${2:-$1}"
   if [[ "$LANG_CHOICE" == "en" ]]; then echo "$en"; else echo "$zh"; fi
-}
-
-ask_yes_no_i18n() {
-  local zh="$1" en="$2" default="${3:-Y}"
-  if [[ "$LANG_CHOICE" == "en" ]]; then
-    ask_yes_no "$en" "$default"
-  else
-    ask_yes_no "$zh" "$default"
-  fi
-}
-
-ask_yes_no() {
-  local question="$1" default="${2:-Y}" answer
-  if ! can_prompt; then
-    [[ "$default" =~ ^[Yy]$ ]] && return 0 || return 1
-  fi
-  read_tty_line answer "$question [$default] " || true
-  answer="${answer:-$default}"
-  [[ "$answer" =~ ^[Yy]$ ]]
 }
 
 choose_language
@@ -304,20 +281,36 @@ fi
 
 if can_prompt; then
   if [[ "$LSP_EXPLICIT" != "1" ]]; then
-    ask_yes_no_i18n "是否启用 OpenCode LSP 并安装常用语言服务器？" "Enable OpenCode LSP and install common language servers?" "Y" && INSTALL_LSP=1 || INSTALL_LSP=0
+    ans_lsp=""
+    msg "是否启用 OpenCode LSP 并安装常用语言服务器？" "Enable OpenCode LSP and install common language servers?" >&9
+    if [[ "$LANG_CHOICE" == "en" ]]; then
+      select_option "" ans_lsp "1" "Yes (recommended)" "No"
+    else
+      select_option "" ans_lsp "1" "是 (推荐)" "否"
+    fi
+    INSTALL_LSP=$([[ "$ans_lsp" == "2" ]] && echo "0" || echo "1")
   fi
   if [[ "$BROWSER_EXPLICIT" != "1" ]]; then
-    ask_yes_no_i18N_DUMMY=0
-    ask_yes_no_i18n "是否安装 CloakBrowser / Playwright 浏览器依赖？" "Install CloakBrowser / Playwright browser dependencies?" "Y" && INSTALL_BROWSER_DEPS=1 || INSTALL_BROWSER_DEPS=0
+    ans_browser=""
+    msg "是否安装 CloakBrowser / Playwright 浏览器依赖？" "Install CloakBrowser / Playwright browser dependencies?" >&9
+    if [[ "$LANG_CHOICE" == "en" ]]; then
+      select_option "" ans_browser "1" "Yes (recommended)" "No"
+    else
+      select_option "" ans_browser "1" "是 (推荐)" "否"
+    fi
+    INSTALL_BROWSER_DEPS=$([[ "$ans_browser" == "2" ]] && echo "0" || echo "1")
   fi
 fi
 
-if [[ "$CONFIGURE_MODELS" == "auto" ]]; then
-  if ask_yes_no_i18n "现在配置团队工作流和各岗位使用的模型？" "Configure team workflow mode and role models now?" "N"; then
-    CONFIGURE_MODELS=1
+if [[ "$CONFIGURE_MODELS" == "auto" ]] && can_prompt; then
+  ans_cfg=""
+  msg "现在配置团队工作流和各岗位使用的模型？" "Configure team workflow mode and role models now?" >&9
+  if [[ "$LANG_CHOICE" == "en" ]]; then
+    select_option "" ans_cfg "2" "Yes" "No (skip)"
   else
-    CONFIGURE_MODELS=0
+    select_option "" ans_cfg "2" "是" "否 (跳过)"
   fi
+  CONFIGURE_MODELS=$([[ "$ans_cfg" == "1" ]] && echo "1" || echo "0")
 fi
 
 CONFIG_FILE="$GLOBAL_CONFIG/opencode.jsonc"
@@ -463,7 +456,31 @@ if [[ "$INSTALL_LSP" == "1" ]]; then
   fi
 fi
 if [[ "$CONFIGURE_MODELS" == "1" ]]; then
-  node "$GLOBAL_CONFIG/scripts/global-cli.mjs" configure-models || true
+  echo "" >&9
+  wf_mode="all-in-one" ans_wf=""
+  msg "选择工作流模式:" "Select workflow mode:" >&9
+  if [[ "$LANG_CHOICE" == "en" ]]; then
+    select_option "" ans_wf "1" "All in one - Desktop one-click entrusted (recommended)" "Lean - lighter process" "Research-heavy - enhanced research"
+  else
+    select_option "" ans_wf "1" "All in one - Desktop 一键托管 (推荐)" "Lean - 精简流程" "Research-heavy - 强化研究"
+  fi
+  case "${ans_wf:-1}" in
+    2) wf_mode="lean" ;;
+    3) wf_mode="research-heavy" ;;
+    *) wf_mode="all-in-one" ;;
+  esac
+
+  worker_model="" supervisor_model="" handoff_model="" checkpoint_model=""
+  read_tty_line worker_model "A-zone 编码模型 [minimax/minimax-m2.7]: " || true
+  worker_model="${worker_model:-minimax/minimax-m2.7}"
+  read_tty_line supervisor_model "总工/审核模型 [deepseek/deepseek-v4-pro]: " || true
+  supervisor_model="${supervisor_model:-deepseek/deepseek-v4-pro}"
+  read_tty_line handoff_model "长上下文交接/研究综合模型 [qwen/qwen3.7-max]: " || true
+  handoff_model="${handoff_model:-qwen/qwen3.7-max}"
+  read_tty_line checkpoint_model "最终审计模型 [openai/gpt-5.5]: " || true
+  checkpoint_model="${checkpoint_model:-openai/gpt-5.5}"
+
+  printf '%s\n%s\n%s\n%s\n%s\n' "$wf_mode" "$worker_model" "$supervisor_model" "$handoff_model" "$checkpoint_model" | node "$GLOBAL_CONFIG/scripts/global-cli.mjs" configure-models || true
 fi
 
 PATH_OK=0
