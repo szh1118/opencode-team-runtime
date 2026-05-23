@@ -143,7 +143,7 @@ function defaultConfig() {
     version: VERSION,
     danger: {
       blockCommands: [
-        "rm -rf /",
+        "rm -rf /*",
         "sudo rm -rf",
         "mkfs",
         ":(){ :|:& };:",
