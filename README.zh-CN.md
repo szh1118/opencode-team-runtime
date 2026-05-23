@@ -1,6 +1,6 @@
 # opencode-team-runtime
 
-> P8.10 安装器修复：安装脚本现在支持 `curl | bash` 场景下从 `/dev/tty` 读取交互输入，语言选择、Context7 API Key、功能选择和模型向导不会再被 stdin 管道跳过。 P8.10
+> P8.10 — All in one Desktop swarm
 
 **opencode-team-runtime** 是一个面向 OpenCode Desktop 的团队式 agent runtime。它的目标不是让一个模型独自死磕，而是把便宜模型、强模型、浏览器工具、研究工具、上下文压缩、证据审计和 handoff 流程组织起来：
 
@@ -8,9 +8,9 @@
 - DeepSeek / Qwen / 强文本模型：做总工规划、普通 review、handoff、长上下文整理。
 - GPT / Claude / 其他高端模型：只在最终审计、失败升级、复杂问题诊断时调用。
 - CloakBrowser / Chrome Bridge：提供真实浏览器观察、操作、截图、console/network 证据和人工接管。
-- Context7 / LSP / Evidence Ledger / Handoff：让 agent 少猜、多查、多验收。
+- LSP / Evidence Ledger / Handoff：让 agent 少猜、多查、多验收。
 
-P8.10 是 **全局安装一次 + Desktop-first + GitHub bootstrap + 中英文交互安装 + Context7 Key + LSP/browser deps + 模型配置向导** 版本。
+P8.10 是 **全局安装一次 + Desktop-first + GitHub bootstrap + 中英文交互安装 + LSP + LSP/browser deps + 模型配置向导** 版本。
 
 ---
 
@@ -39,7 +39,7 @@ cd opencode-team-runtime
 
 随后会交互询问：
 
-- 是否启用 Context7 MCP；选择是后必须输入 Context7 API Key。
+- 是否启用 LSP；选择是后必须安装常用语言服务器。
 - 是否启用 OpenCode LSP 并安装常用语言服务器。
 - 是否安装 CloakBrowser / Playwright 浏览器依赖。
 - 是否运行模型配置向导。
@@ -66,7 +66,6 @@ cd opencode-team-runtime
 ./install.sh --lang zh
 ./install.sh --lang en
 ./install.sh --yes
-./install.sh --no-context7
 ./install.sh --no-lsp
 ./install.sh --no-browser-deps
 ./install.sh --configure-models
@@ -79,17 +78,15 @@ cd opencode-team-runtime
 非交互安装示例：
 
 ```bash
-CONTEXT7_API_KEY=你的_key \
   curl -fsSL https://raw.githubusercontent.com/szh1118/opencode-team-runtime/master/install.sh \
   | bash -s -- --yes
 ```
 
 说明：
 
-- 交互模式下，用户可以逐项选择是否安装 Context7 / LSP / browser deps。
-- 选择启用 Context7 时，安装脚本会要求输入 Context7 API Key。
+- 交互模式下，用户可以逐项选择是否安装 LSP / browser deps。
+- 选择启用 LSP 时，安装脚本会要求安装常用语言服务器。
 - `--yes` 适合无人值守安装，会保留默认启用项，但跳过模型配置向导，避免 stdin 卡住。
-- 不想安装某项功能时使用 `--no-context7`、`--no-lsp`、`--no-browser-deps`。
 
 ---
 
@@ -214,20 +211,9 @@ visual reviewer / UI/视觉审核
 
 ---
 
-## Context7
-
-安装时选择启用 Context7 后，脚本会要求输入 API Key，并写入全局 OpenCode MCP 配置：
-
 ```json
 {
   "mcp": {
-    "context7": {
-      "type": "remote",
-      "url": "https://mcp.context7.com/mcp",
-      "enabled": true,
-      "headers": {
-        "CONTEXT7_API_KEY": "你的_key"
-      }
     }
   }
 }
@@ -236,14 +222,11 @@ visual reviewer / UI/视觉审核
 如果使用非交互安装，可以先设置环境变量：
 
 ```bash
-export CONTEXT7_API_KEY=你的_key
 curl -fsSL https://raw.githubusercontent.com/szh1118/opencode-team-runtime/master/install.sh | bash -s -- --yes
 ```
 
-不想启用 Context7：
 
 ```bash
-./install.sh --no-context7
 ```
 
 ---
@@ -523,7 +506,6 @@ opencode-team configure-models
 
 ```bash
 bash -n install.sh
-./install.sh --lang zh --skip-npm --no-browser-deps --no-lsp --no-context7 --no-configure-models
 ```
 
 如果要测试缓存更新逻辑：

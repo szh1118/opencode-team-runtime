@@ -18,6 +18,7 @@ opencode-team-runtime uninstaller $VERSION
 
 Usage:
   ./uninstall.sh [options]
+  curl -fsSL https://raw.githubusercontent.com/szh1118/opencode-team-runtime/master/uninstall.sh | bash -s -- --yes
 
 Options:
   --yes, -y                    Skip confirmation prompts

@@ -9,9 +9,9 @@
 - **Handoff**：长上下文交接、研究综合、会话轮换时写 handoff。
 - **Checkpoint auditor**：最终审计、失败升级、claimed-but-missing 检测。
 - **CloakBrowser / Chrome Bridge**：真实浏览器观察、操作、截图、console/network 证据和人工接管。
-- **Context7 / LSP / Evidence Ledger / Deep Research / Curator**：让 agent 少猜、多查、多验收。
+- **LSP / Evidence Ledger / Deep Research / Curator**：让 agent 少猜、多查、多验收。
 
-岗位是模型无关的 alias：`worker` / `supervisor` / `handoff` / `checkpoint`。用户在安装时选择工作流模式（All in one / Lean / Research-heavy），再给每个岗位指定真实的模型 ID。
+岗位是模型无关的 alias：`worker` / `supervisor` / `handoff` / `checkpoint`。用户在安装时选择给每个岗位指定真实的模型 ID（从现有 opencode 配置自动发现可用模型列表）。
 
 ---
 
@@ -31,13 +31,19 @@ cd opencode-team-runtime
 ./install.sh
 ```
 
-安装脚本开头会让用户选择中英文，随后交互询问是否启用 Context7 / LSP / 浏览器依赖 / 模型配置向导。
+安装脚本开头会让用户选择中英文，随后交互询问是否启用 LSP / 浏览器依赖 / 模型配置向导。
 
 安装器会把 runtime 安装到 OpenCode 全局配置目录（默认 `~/.config/opencode`），并把 wrapper 放到 `~/.local/bin`。
 
 ---
 
 ## 一键卸载
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/szh1118/opencode-team-runtime/master/uninstall.sh | bash -s -- --yes
+```
+
+或：
 
 ```bash
 ./uninstall.sh --yes
@@ -58,18 +64,16 @@ cd opencode-team-runtime
 ./install.sh --lang zh                    # 中文
 ./install.sh --lang en                    # English
 ./install.sh --yes                        # 非交互（保留默认，跳过模型向导）
-./install.sh --no-context7                # 不装 Context7
 ./install.sh --no-lsp                     # 不装 LSP
 ./install.sh --no-browser-deps            # 不装浏览器依赖
-./install.sh --configure-models           # 强制运行工作流/模型向导
+./install.sh --configure-models           # 强制运行模型配置向导
 ./install.sh --config-dir ~/.config/opencode
 ```
 
 非交互安装：
 
 ```bash
-CONTEXT7_API_KEY=你的_key \
-  curl -fsSL https://raw.githubusercontent.com/szh1118/opencode-team-runtime/master/install.sh | bash -s -- --yes
+curl -fsSL https://raw.githubusercontent.com/szh1118/opencode-team-runtime/master/install.sh | bash -s -- --yes
 ```
 
 ---
@@ -101,7 +105,7 @@ CONTEXT7_API_KEY=你的_key \
 
 ---
 
-## 工作流模式与模型配置
+## 模型配置
 
 安装后运行模型配置向导：
 
@@ -109,15 +113,7 @@ CONTEXT7_API_KEY=你的_key \
 opencode-team configure-models
 ```
 
-向导会先让用户选择工作流模式：
-
-```text
-1) All in one — Desktop 托管入口 (recommended)
-2) Lean — 总工 + worker + reviewer，少用 checkpoint
-3) Research-heavy — 增强研究和 handoff 路由
-```
-
-然后让用户为四个岗位指定模型：
+向导会读取你现有的 opencode 配置，自动发现可用模型列表，为四个岗位选择：
 
 ```text
 A-zone worker model          → 粗活编码（默认 minimax/minimax-m2.7）
@@ -284,7 +280,7 @@ opencode-team chrome-bridge serve
 
 ---
 
-## Context7 / LSP
+## LSP
 
 安装时可选启用。也可手动配置：
 
@@ -342,7 +338,7 @@ opencode-team configure-models
 ### 卸载
 
 ```bash
-./uninstall.sh --yes
+curl -fsSL https://raw.githubusercontent.com/szh1118/opencode-team-runtime/master/uninstall.sh | bash -s -- --yes
 ```
 
 ---
@@ -354,5 +350,5 @@ opencode-team configure-models
 ```bash
 bash -n install.sh
 bash -n uninstall.sh
-./install.sh --lang zh --skip-npm --no-browser-deps --no-lsp --no-context7 --no-configure-models
+./install.sh --lang zh --skip-npm --no-browser-deps --no-lsp --no-configure-models
 ```
