@@ -147,9 +147,13 @@ msg() {
 
 choose_language
 
-# Bootstrap mode: when this script is executed through curl|bash, .opencode will not exist next to it.
+# Bootstrap mode: when this script is executed through curl|bash, $0 is "bash".
 RAW_SRC="${BASH_SOURCE[0]:-$0}"
 SRC_DIR="$(cd "$(dirname "$RAW_SRC")" 2>/dev/null && pwd 2>/dev/null || pwd)"
+# Only skip clone when running from a real repo (not piped stdin)
+if [[ "$0" != "bash" && -d "$SRC_DIR/.opencode" && "$SKIP_CLONE" != "1" ]]; then
+  SKIP_CLONE=1
+fi
 if [[ ! -d "$SRC_DIR/.opencode" && "$SKIP_CLONE" != "1" ]]; then
   if ! have git; then
     echo "git is required to clone $REPO_URL" >&2
