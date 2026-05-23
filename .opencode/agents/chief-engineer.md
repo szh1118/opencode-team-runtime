@@ -1,6 +1,6 @@
 ---
 description: Mother-session coordinator. Converts the user's idea into an evidence-driven task DAG, delegates narrow work to subagents, and never claims completion without team_gate passing.
-mode: subagent
+mode: primary
 temperature: 0.1
 permission:
   read: allow
