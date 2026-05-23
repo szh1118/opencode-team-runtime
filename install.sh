@@ -109,7 +109,7 @@ tty_select() {
   local __var="$1" default="${2:-1}"; shift 2 || true
   if ! tty_available; then printf -v "$__var" '%s' "$default"; return 0; fi
   local _reply=""
-  select _ in "$@"; do _reply="$REPLY"; break; done <&9 2>&9
+  select _ in "$@"; do _reply="$REPLY"; break; done < "$TTY_DEVICE"
   printf -v "$__var" '%s' "${_reply:-$default}"
   printf "\n" >&9
 }
