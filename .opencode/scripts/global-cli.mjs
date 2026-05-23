@@ -271,78 +271,115 @@ function installLsp(args = []) {
   console.log("LSP packages installation finished. Some OpenCode built-ins still require language toolchains such as .NET, Java 21+, Dart, Elixir, Swift, Nix, OCaml, Julia, etc.");
 }
 
+function discoverModels(cfg) {
+  const found = new Set()
+  if (cfg.model) found.add(cfg.model)
+  if (cfg.provider) {
+    for (const [name, p] of Object.entries(cfg.provider)) {
+      if (p.models) {
+        for (const id of Object.keys(p.models)) found.add(`${name}/${id}`)
+      }
+      if (p.options?.model) found.add(`${name}/${p.options.model}`)
+    }
+  }
+  if (cfg.agent) {
+    for (const a of Object.values(cfg.agent)) {
+      if (a.model) found.add(a.model)
+    }
+  }
+  if (found.size === 0) {
+    // fallback: guess from provider names
+    if (cfg.provider) {
+      for (const name of Object.keys(cfg.provider)) found.add(`${name}/${name}`)
+    }
+  }
+  return [...found].sort()
+}
+
 async function configureModels() {
-  console.log("\nConfigure opencode-team-runtime workflow and model routing.");
-  console.log("Use OpenCode model IDs exactly as they appear in your OpenCode provider setup, e.g. openai/gpt-5.5, minimax/minimax-m2.7, deepseek/deepseek-v4-pro, or qwen/qwen3.7-max.");
-  const pipedAnswers = process.stdin.isTTY ? null : fs.readFileSync(0, "utf8").split(/\r?\n/);
-  let pipedIndex = 0;
-  const rl = process.stdin.isTTY ? readline.createInterface({ input: process.stdin, output: process.stdout }) : null;
+  console.log("\nConfigure opencode-team-runtime model routing.")
+
+  const cfg = readJsonc(OPENCODE_CONFIG_FILE, { $schema: "https://opencode.ai/config.json" })
+  const discovered = discoverModels(cfg)
+  const registry = getGlobalRegistry()
+  const current = registry.models || defaultRegistry().models
+
+  console.log(`\nFound ${discovered.length} model(s) in your OpenCode config:`)
+  discovered.forEach((m, i) => console.log(`  ${i + 1}) ${m}`))
+  console.log(`  Enter a number to select, or type a custom provider/model ID.`)
+  console.log(`  Enter 's' to keep the current value.`)
+
+  const hasTTY = process.stdin.isTTY
+  const pipedAnswers = hasTTY ? null : fs.readFileSync(0, "utf8").split(/\r?\n/)
+  let pipedIndex = 0
+  const rl = hasTTY ? readline.createInterface({ input: process.stdin, output: process.stdout }) : null
+
   const ask = async (question, def = "") => {
     if (pipedAnswers) {
-      const raw = pipedAnswers[pipedIndex++] ?? "";
-      console.log(`${question}${def ? ` [${def}]` : ""}: ${raw}`);
-      return (String(raw || "").trim() || def).trim();
+      const raw = pipedAnswers[pipedIndex++] ?? ""
+      console.log(`${question}${def ? ` [${def}]` : ""}: ${raw}`)
+      return (String(raw || "").trim() || def).trim()
     }
-    const answer = await new Promise((resolve) => rl.question(`${question}${def ? ` [${def}]` : ""}: `, resolve));
-    return (String(answer || "").trim() || def).trim();
-  };
-  const registry = getGlobalRegistry();
-  const current = registry.models || defaultRegistry().models;
-  console.log("\nWorkflow mode:");
-  console.log("  1) All in one - Desktop托管入口: plan + work + B-zone review + checkpoint + handoff (recommended)");
-  console.log("  2) Lean - chief engineer + worker + reviewer, lighter checkpoint use");
-  console.log("  3) Research-heavy - guided flow plus stronger research/handoff routing");
-  const modeAnswer = await ask("Workflow mode", "1");
-  const workflowMode = modeAnswer === "2" || /^lean$/i.test(modeAnswer) ? "lean" : modeAnswer === "3" || /^research/i.test(modeAnswer) ? "research-heavy" : "all-in-one";
-  const worker = await ask("A-zone worker model for narrow implementation", current.worker?.opencodeModel || current["minimax-m2.7"]?.opencodeModel || "minimax/minimax-m2.7");
-  const supervisor = await ask("Supervisor/reviewer model", current.supervisor?.opencodeModel || current["deepseek-v4-pro"]?.opencodeModel || "deepseek/deepseek-v4-pro");
-  const handoff = await ask("Long-context handoff/research synthesis model", current.handoff?.opencodeModel || current["qwen3.7-max"]?.opencodeModel || "qwen/qwen3.7-max");
-  const checkpoint = await ask("Premium checkpoint/auditor model", current.checkpoint?.opencodeModel || current["gpt-5.5"]?.opencodeModel || "openai/gpt-5.5");
-  if (rl) rl.close();
+    const answer = await new Promise((resolve) => rl.question(`${question}${def ? ` [${def}]` : ""}: `, resolve))
+    return (String(answer || "").trim() || def).trim()
+  }
+
+  const pickModel = async (role, roleKey) => {
+    const fallback = current[roleKey]?.opencodeModel || ""
+    const answer = await ask(`\n${role} model`, fallback)
+    if (!answer || answer === "s") return fallback
+    const idx = parseInt(answer)
+    if (idx >= 1 && idx <= discovered.length) return discovered[idx - 1]
+    return answer
+  }
+
+  const worker = await pickModel("A-zone worker (narrow implementation)", "worker")
+  const supervisor = await pickModel("Supervisor/reviewer", "supervisor")
+  const handoff = await pickModel("Long-context handoff/research", "handoff")
+  const checkpoint = await pickModel("Premium checkpoint/auditor", "checkpoint")
+  if (rl) rl.close()
+
   registry.models = {
     ...current,
     worker: { ...(current.worker || {}), label: "A-zone worker", opencodeModel: worker, tier: "budget" },
     supervisor: { ...(current.supervisor || {}), label: "Supervisor/reviewer", opencodeModel: supervisor, tier: "strong" },
     handoff: { ...(current.handoff || {}), label: "Long-context handoff", opencodeModel: handoff, tier: "strong" },
     checkpoint: { ...(current.checkpoint || {}), label: "Premium checkpoint/auditor", opencodeModel: checkpoint, tier: "premium" },
-  };
-  registry.workflowMode = workflowMode;
-  writeJson(globalRegistryFile(), registry);
-  const policy = getGlobalPolicy();
-  policy.workflowMode = workflowMode;
-  policy.roles = { ...defaultPolicy().roles, ...(policy.roles || {}) };
-  policy.roles["chief-engineer"] = { defaultModel: "supervisor", fallbackModels: workflowMode === "research-heavy" ? ["handoff", "checkpoint"] : ["checkpoint"], premiumAllowed: true };
-  policy.roles["a-zone-coder"] = { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false };
-  policy.roles["minimax-coder"] = { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false };
-  policy.roles.tester = { defaultModel: workflowMode === "lean" ? "worker" : "supervisor", fallbackModels: ["worker"], premiumAllowed: false };
-  policy.roles.reviewer = { defaultModel: "supervisor", fallbackModels: workflowMode === "lean" ? [] : ["handoff", "checkpoint"], premiumAllowed: true };
-  policy.roles.auditor = { defaultModel: "checkpoint", fallbackModels: ["handoff", "supervisor"], premiumAllowed: true, checkpointOnly: true };
-  policy.roles["handoff-writer"] = { defaultModel: "handoff", fallbackModels: ["supervisor"], premiumAllowed: false };
-  writeJson(globalPolicyFile(), policy);
+  }
+  writeJson(globalRegistryFile(), registry)
 
-  const cfg = readJsonc(OPENCODE_CONFIG_FILE, { $schema: "https://opencode.ai/config.json" });
-  cfg.$schema ||= "https://opencode.ai/config.json";
-  cfg.agent ||= {};
-  const setAgent = (name, model) => { cfg.agent[name] = { ...(cfg.agent[name] || {}), model }; };
-  setAgent("chief-engineer", supervisor);
-  setAgent("overnight-supervisor", supervisor);
-  setAgent("research-scout", workflowMode === "research-heavy" ? handoff : supervisor);
-  setAgent("research-reviewer", supervisor);
-  setAgent("a-zone-coder", worker);
-  setAgent("minimax-coder", worker);
-  setAgent("tester", workflowMode === "lean" ? worker : supervisor);
-  setAgent("browser-actor", worker);
-  setAgent("browser-perception", supervisor);
-  setAgent("reviewer", supervisor);
-  setAgent("auditor", checkpoint);
-  setAgent("visual-reviewer", checkpoint);
-  setAgent("handoff-writer", handoff);
-  writeJsonc(OPENCODE_CONFIG_FILE, cfg);
+  const policy = getGlobalPolicy()
+  policy.roles = { ...defaultPolicy().roles, ...(policy.roles || {}) }
+  policy.roles["chief-engineer"] = { defaultModel: "supervisor", fallbackModels: ["handoff", "checkpoint"], premiumAllowed: true }
+  policy.roles["a-zone-coder"] = { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false }
+  policy.roles["minimax-coder"] = { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false }
+  policy.roles.tester = { defaultModel: "supervisor", fallbackModels: ["worker"], premiumAllowed: false }
+  policy.roles.reviewer = { defaultModel: "supervisor", fallbackModels: ["handoff", "checkpoint"], premiumAllowed: true }
+  policy.roles.auditor = { defaultModel: "checkpoint", fallbackModels: ["handoff", "supervisor"], premiumAllowed: true, checkpointOnly: true }
+  policy.roles["handoff-writer"] = { defaultModel: "handoff", fallbackModels: ["supervisor"], premiumAllowed: false }
+  writeJson(globalPolicyFile(), policy)
 
-  console.log(`\nSaved global model registry: ${globalRegistryFile()}`);
-  console.log(`Updated OpenCode global config agent overrides: ${OPENCODE_CONFIG_FILE}`);
-  console.log(`Workflow mode: ${workflowMode}`);
-  console.log("New projects initialized with opencode-team init will inherit this model registry.");
+  cfg.$schema ||= "https://opencode.ai/config.json"
+  cfg.agent ||= {}
+  const setAgent = (name, model) => { cfg.agent[name] = { ...(cfg.agent[name] || {}), model } }
+  setAgent("chief-engineer", supervisor)
+  setAgent("overnight-supervisor", supervisor)
+  setAgent("research-scout", handoff)
+  setAgent("research-reviewer", supervisor)
+  setAgent("a-zone-coder", worker)
+  setAgent("minimax-coder", worker)
+  setAgent("tester", supervisor)
+  setAgent("browser-actor", worker)
+  setAgent("browser-perception", supervisor)
+  setAgent("reviewer", supervisor)
+  setAgent("auditor", checkpoint)
+  setAgent("visual-reviewer", checkpoint)
+  setAgent("handoff-writer", handoff)
+  writeJsonc(OPENCODE_CONFIG_FILE, cfg)
+
+  console.log(`\nSaved global model registry: ${globalRegistryFile()}`)
+  console.log(`Updated OpenCode global config agent overrides: ${OPENCODE_CONFIG_FILE}`)
+  console.log("New projects initialized with opencode-team init will inherit this model registry.")
 }
 
 const [cmd = "help", ...args] = process.argv.slice(2);

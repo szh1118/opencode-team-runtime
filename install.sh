@@ -40,7 +40,7 @@ Options:
   --browser-deps / --no-browser-deps
                                Install/skip CloakBrowser + Playwright deps. Default: enabled
   --configure-models / --no-configure-models
-                                Run/skip workflow and role model configuration after install
+                                Run/skip role model configuration after install
   --skip-npm                   Do not run npm install; useful for offline packaging tests
   --help                       Show this help
 
@@ -309,7 +309,7 @@ fi
 if [[ "$CONFIGURE_MODELS" == "auto" ]] && can_prompt; then
   ans_cfg=""
   echo "" >&9
-  msg "现在配置团队工作流和各岗位使用的模型？" "Configure team workflow mode and role models now?" >&9
+  msg "现在配置各岗位使用的模型？" "Configure role models now?" >&9
   if [[ "$LANG_CHOICE" == "en" ]]; then
     tty_menu ans_cfg "2" "Yes" "No (skip)"
   else
@@ -461,37 +461,13 @@ if [[ "$INSTALL_LSP" == "1" ]]; then
   fi
 fi
 if [[ "$CONFIGURE_MODELS" == "1" ]]; then
-  wf_mode="all-in-one"
-  worker_model="minimax/minimax-m2.7"
-  supervisor_model="deepseek/deepseek-v4-pro"
-  handoff_model="qwen/qwen3.7-max"
-  checkpoint_model="openai/gpt-5.5"
   if can_prompt; then
     echo "" >&9
-    ans_wf=""
-    echo "" >&9
-    msg "选择工作流模式:" "Select workflow mode:" >&9
-    if [[ "$LANG_CHOICE" == "en" ]]; then
-      tty_menu ans_wf "1" "All in one - Desktop one-click entrusted (recommended)" "Lean - lighter process" "Research-heavy - enhanced research"
-    else
-      tty_menu ans_wf "1" "All in one - Desktop 一键托管 (推荐)" "Lean - 精简流程" "Research-heavy - 强化研究"
-    fi
-    case "${ans_wf:-1}" in
-      2) wf_mode="lean" ;;
-      3) wf_mode="research-heavy" ;;
-      *) wf_mode="all-in-one" ;;
-    esac
-    echo "" >&9
-    read_tty_line worker_model "A-zone 编码模型 [minimax/minimax-m2.7]: " || true
-    worker_model="${worker_model:-minimax/minimax-m2.7}"
-    read_tty_line supervisor_model "总工/审核模型 [deepseek/deepseek-v4-pro]: " || true
-    supervisor_model="${supervisor_model:-deepseek/deepseek-v4-pro}"
-    read_tty_line handoff_model "长上下文交接/研究综合模型 [qwen/qwen3.7-max]: " || true
-    handoff_model="${handoff_model:-qwen/qwen3.7-max}"
-    read_tty_line checkpoint_model "最终审计模型 [openai/gpt-5.5]: " || true
-    checkpoint_model="${checkpoint_model:-openai/gpt-5.5}"
+    msg "即将打开模型选择界面..." "Opening model selection..." >&9
+    node "$GLOBAL_CONFIG/scripts/global-cli.mjs" configure-models < "$TTY_DEVICE" || true
+  else
+    printf 's\ns\ns\ns\n' | node "$GLOBAL_CONFIG/scripts/global-cli.mjs" configure-models || true
   fi
-  printf '%s\n%s\n%s\n%s\n%s\n' "$wf_mode" "$worker_model" "$supervisor_model" "$handoff_model" "$checkpoint_model" | node "$GLOBAL_CONFIG/scripts/global-cli.mjs" configure-models || true
 fi
 
 PATH_OK=0
@@ -505,7 +481,7 @@ echo "Global CLI wrappers: $BIN_DIR"
 echo "Updated: $CONFIG_FILE"
 echo ""
 echo "Desktop usage: open any project in OpenCode Desktop and run /team-overnight or /team-plan."
-echo "One-time workflow/model wizard: opencode-team configure-models"
+echo "One-time model wizard: opencode-team configure-models"
 echo "Project state, when needed: opencode-team init /path/to/project"
 echo "Chrome bridge: opencode-team chrome-bridge serve, then load $GLOBAL_CONFIG/browser-extension in Chrome."
 if [[ "$INSTALL_LSP" == "1" ]]; then
