@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font: 13px system-ui, sans-serif; min-width: 320px; padding: 12px; background: #111827; color: #f9fafb; }
+    label { display:block; margin-top: 8px; color: #cbd5e1; }
+    input { width: 100%; box-sizing: border-box; padding: 6px; border-radius: 6px; border: 1px solid #374151; background: #030712; color: #f9fafb; }
+    button { margin-top: 10px; padding: 7px 10px; border: 0; border-radius: 7px; font-weight: 700; cursor: pointer; }
+    #start { background: #22c55e; color: #04140a; }
+    #stop { background: #ef4444; color: white; margin-left: 6px; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #030712; border-radius: 8px; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h3>OpenCode Team Browser Bridge</h3>
+  <label>Host <input id="host" value="127.0.0.1" /></label>
+  <label>Port <input id="port" value="37987" /></label>
+  <label>Token <input id="token" value="dev-local" /></label>
+  <button id="start">Connect</button><button id="stop">Stop</button>
+  <pre id="status">Loading…</pre>
+  <script src="popup.js"></script>
+</body>
+</html>

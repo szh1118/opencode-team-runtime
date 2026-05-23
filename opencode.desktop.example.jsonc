@@ -1,0 +1,81 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Desktop-first config for opencode-team-runtime.
+  // Place this in your project opencode.jsonc or merge the sections below.
+  // OpenCode Desktop loads the same project config, local plugins, agents, commands, and MCP servers.
+
+  "plugin": ["./.opencode/plugins/team-runtime.js"],
+
+  "mcp": {
+    "cloakbrowser": {
+      "type": "local",
+      "command": ["node", "./.opencode/mcp/cloakbrowser-mcp.mjs"],
+      "enabled": true,
+      "environment": {
+        "TEAM_PROJECT_ROOT": ".",
+        "CLOAKBROWSER_HEADLESS": "false",
+        "CLOAKBROWSER_HUMANIZE": "true",
+        "CLOAKBROWSER_PROFILE_DIR": ".opencode/team/browser/profile",
+        "CLOAKBROWSER_MANUAL_TIMEOUT_MS": "600000"
+      }
+    },
+    "browser-bridge": {
+      "type": "local",
+      "command": ["node", "./.opencode/mcp/browser-bridge-mcp.mjs"],
+      "enabled": true,
+      "environment": {
+        "TEAM_PROJECT_ROOT": ".",
+        "OPENCODE_BROWSER_BRIDGE_PORT": "37987",
+        "OPENCODE_BROWSER_BRIDGE_TOKEN": "dev-local"
+      }
+    },
+    "research": {
+      "type": "local",
+      "command": ["node", "./.opencode/mcp/research-mcp.mjs"],
+      "enabled": true,
+      "environment": { "TEAM_PROJECT_ROOT": "." }
+    },
+    "context": {
+      "type": "local",
+      "command": ["node", "./.opencode/mcp/context-mcp.mjs"],
+      "enabled": true,
+      "environment": { "TEAM_PROJECT_ROOT": "." }
+    },
+    "router": {
+      "type": "local",
+      "command": ["node", "./.opencode/mcp/router-mcp.mjs"],
+      "enabled": true,
+      "environment": { "TEAM_PROJECT_ROOT": "." }
+    },
+    "memory": {
+      "type": "local",
+      "command": ["node", "./.opencode/mcp/memory-mcp.mjs"],
+      "enabled": true,
+      "environment": { "TEAM_PROJECT_ROOT": "." }
+    },
+    "patch": {
+      "type": "local",
+      "command": ["node", "./.opencode/mcp/patch-mcp.mjs"],
+      "enabled": true,
+      "environment": { "TEAM_PROJECT_ROOT": "." }
+    },
+    "overnight": {
+      "type": "local",
+      "command": ["node", "./.opencode/mcp/overnight-mcp.mjs"],
+      "enabled": true,
+      "environment": { "TEAM_PROJECT_ROOT": "." }
+    }
+  },
+
+  // Optional: override model per agent here. Replace with your actual provider/model IDs.
+  "agent": {
+    "chief-engineer": { "model": "deepseek-custom/deepseek-v4-pro" },
+    "minimax-coder": { "model": "minimax/minimax-m2.7" },
+    "tester": { "model": "minimax/minimax-m2.7" },
+    "reviewer": { "model": "openai/gpt-5.5" },
+    "auditor": { "model": "openai/gpt-5.5" },
+    "handoff-writer": { "model": "qwen-custom/qwen3.7-max" },
+    "overnight-supervisor": { "model": "deepseek-custom/deepseek-v4-pro" }
+  }
+}

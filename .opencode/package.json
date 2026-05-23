@@ -1,0 +1,46 @@
+{
+  "name": "opencode-team-runtime-global-config",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "team": "node ./scripts/team-runner.mjs",
+    "doctor": "node ./scripts/team-doctor.mjs && node ./scripts/team-runner.mjs doctor && node ./scripts/browser-runner.mjs doctor && node ./scripts/context-runner.mjs doctor && node ./scripts/router-runner.mjs doctor && node ./scripts/memory-runner.mjs doctor && node ./scripts/patch-runner.mjs doctor && node ./scripts/overnight-runner.mjs doctor",
+    "browser": "node ./scripts/browser-runner.mjs",
+    "browser:doctor": "node ./scripts/browser-runner.mjs doctor",
+    "mcp:cloakbrowser": "node ./mcp/cloakbrowser-mcp.mjs",
+    "chrome-bridge": "node ./scripts/browser-bridge-server.mjs",
+    "chrome-bridge:serve": "node ./scripts/browser-bridge-server.mjs serve",
+    "chrome-bridge:doctor": "node ./scripts/browser-bridge-server.mjs doctor",
+    "mcp:browser-bridge": "node ./mcp/browser-bridge-mcp.mjs",
+    "research": "node ./scripts/research-runner.mjs",
+    "research:doctor": "node ./scripts/research-runner.mjs doctor",
+    "mcp:research": "node ./mcp/research-mcp.mjs",
+    "context": "node ./scripts/context-runner.mjs",
+    "context:doctor": "node ./scripts/context-runner.mjs doctor",
+    "mcp:context": "node ./mcp/context-mcp.mjs",
+    "router": "node ./scripts/router-runner.mjs",
+    "router:doctor": "node ./scripts/router-runner.mjs doctor",
+    "mcp:router": "node ./mcp/router-mcp.mjs",
+    "memory": "node ./scripts/memory-runner.mjs",
+    "memory:doctor": "node ./scripts/memory-runner.mjs doctor",
+    "mcp:memory": "node ./mcp/memory-mcp.mjs",
+    "patch": "node ./scripts/patch-runner.mjs",
+    "patch:doctor": "node ./scripts/patch-runner.mjs doctor",
+    "mcp:patch": "node ./mcp/patch-mcp.mjs",
+    "overnight": "node ./scripts/overnight-runner.mjs",
+    "overnight:doctor": "node ./scripts/overnight-runner.mjs doctor",
+    "mcp:overnight": "node ./mcp/overnight-mcp.mjs",
+    "desktop:doctor": "node ./scripts/desktop-doctor.mjs",
+    "configure-models": "node ./scripts/global-cli.mjs configure-models",
+    "install-lsp": "node ./scripts/global-cli.mjs install-lsp --profile common --yes"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "latest"
+  },
+  "optionalDependencies": {
+    "cloakbrowser": "latest",
+    "playwright-core": "latest"
+  },
+  "description": "opencode-team-runtime P8.10 desktop-first global runtime",
+  "version": "0.11.3-p8.7"
+}

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "OpenCode Team Browser Bridge",
+  "version": "0.4.0",
+  "description": "Let opencode-team-runtime inspect and control user Chrome tabs through a local bridge server.",
+  "action": {
+    "default_title": "OpenCode Team Browser Bridge",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "tabs",
+    "scripting",
+    "storage",
+    "activeTab",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'self' http://127.0.0.1:* http://localhost:*;"
+  }
+}
