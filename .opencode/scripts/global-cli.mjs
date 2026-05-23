@@ -276,21 +276,18 @@ function discoverModels(cfg) {
   if (cfg.model) found.add(cfg.model)
   if (cfg.provider) {
     for (const [name, p] of Object.entries(cfg.provider)) {
+      let hasModels = false
       if (p.models) {
-        for (const id of Object.keys(p.models)) found.add(`${name}/${id}`)
+        for (const id of Object.keys(p.models)) { found.add(`${name}/${id}`); hasModels = true }
       }
-      if (p.options?.model) found.add(`${name}/${p.options.model}`)
+      if (p.options?.model) { found.add(`${name}/${p.options.model}`); hasModels = true }
+      // Provider exists but no explicit model list: list it as a namespace
+      if (!hasModels) found.add(`${name}/`)
     }
   }
   if (cfg.agent) {
     for (const a of Object.values(cfg.agent)) {
       if (a.model) found.add(a.model)
-    }
-  }
-  if (found.size === 0) {
-    // fallback: guess from provider names
-    if (cfg.provider) {
-      for (const name of Object.keys(cfg.provider)) found.add(`${name}/${name}`)
     }
   }
   return [...found].sort()
