@@ -150,8 +150,8 @@ choose_language
 # Bootstrap mode: when this script is executed through curl|bash, $0 is "bash".
 RAW_SRC="${BASH_SOURCE[0]:-$0}"
 SRC_DIR="$(cd "$(dirname "$RAW_SRC")" 2>/dev/null && pwd 2>/dev/null || pwd)"
-# In pipe mode ($0=bash) always bootstrap; otherwise detect if we're in the repo
-if [[ "$0" == "bash" ]]; then
+# In pipe mode ($0 is bash or /bin/bash) always bootstrap; otherwise detect repo
+if [[ -z "${BASH_SOURCE[0]:-}" || "$0" == "bash" || "$0" == */bash ]]; then
   SKIP_CLONE=0
 elif [[ -d "$SRC_DIR/.opencode" && "$SKIP_CLONE" != "1" ]]; then
   SKIP_CLONE=1
