@@ -304,8 +304,15 @@ function discoverModels(cfg) {
   try { if (fs.existsSync(modelsCache)) cache = JSON.parse(fs.readFileSync(modelsCache, "utf8")) } catch {}
 
   for (const provider of configuredProviders) {
-    if (cache[provider]?.models) {
-      for (const id of Object.keys(cache[provider].models)) found.add(`${provider}/${id}`)
+    // Strip -cn / -coding-plan suffixes; prefer short name for model prefix
+    const stripped = provider.replace(/-cn-coding-plan$|-coding-plan$|-cn$/, "")
+    const lookup = stripped !== provider ? [stripped, provider] : [provider]
+    let matchedKey = null
+    for (const key of lookup) {
+      if (cache[key]?.models) { matchedKey = key; break }
+    }
+    if (matchedKey) {
+      for (const id of Object.keys(cache[matchedKey].models)) found.add(`${matchedKey}/${id}`)
     } else if (!cfg.provider?.[provider]?.models) {
       found.add(`${provider}/`)
     }
@@ -369,7 +376,7 @@ async function configureModels() {
     return answer
   }
 
-  const worker = await pickModel("A-zone worker (narrow implementation)", "worker", "flash")
+  const worker = await pickModel("A-zone worker (narrow implementation)", "worker", "m2")
   const supervisor = await pickModel("Supervisor/reviewer", "supervisor", "deepseek")
   const handoff = await pickModel("Long-context handoff/research", "handoff", "qwen")
   const checkpoint = await pickModel("Premium checkpoint/auditor", "checkpoint", "gpt")

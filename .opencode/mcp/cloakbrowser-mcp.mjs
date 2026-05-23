@@ -326,7 +326,7 @@ function tryParseFrames() {
   }
 }
 
-process.stdin.on("data", (chunk) => {
+process.stdin.on("readable", () => {
   buffer = Buffer.concat([buffer, chunk]);
   try { tryParseFrames(); }
   catch (err) { send(makeError(null, -32700, err.message)); }

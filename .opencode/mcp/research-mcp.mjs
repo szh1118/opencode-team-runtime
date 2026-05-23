@@ -157,8 +157,10 @@ function __tryParseFrames() {
   }
 }
 
-process.stdin.on("data", (chunk) => {
-  __buffer = Buffer.concat([__buffer, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
+process.stdin.on("readable", () => {
+    let chunk; while ((chunk = process.stdin.read()) !== null) {
+__buffer = Buffer.concat([__buffer, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
+  }
   try { __tryParseFrames(); }
   catch (err) { __send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: err.message } }); }
 });
