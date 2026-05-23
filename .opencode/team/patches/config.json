@@ -1,0 +1,43 @@
+{
+  "version": "0.9.0-p7",
+  "autoApply": false,
+  "requireApproval": true,
+  "requireValidation": true,
+  "allowCoreRuntimePatch": false,
+  "maxPatchBytes": 200000,
+  "allowedPathPrefixes": [
+    ".opencode/agents/",
+    ".opencode/skills/",
+    ".opencode/team/router/",
+    ".opencode/team/memory/",
+    ".opencode/team/config.json",
+    ".opencode/team/runtime.config.json",
+    "docs/",
+    "README.md",
+    "opencode.team.example.jsonc"
+  ],
+  "blockedPathPrefixes": [
+    ".git/",
+    ".env",
+    ".ssh/",
+    ".opencode/scripts/",
+    ".opencode/plugins/",
+    ".opencode/mcp/",
+    ".opencode/browser-extension/",
+    ".opencode/team/browser/",
+    ".opencode/team/sessions/",
+    "node_modules/",
+    "install.sh",
+    "package.json"
+  ],
+  "allowedOperations": [
+    "write",
+    "append",
+    "replace"
+  ],
+  "requiredReviewers": [
+    "patch-reviewer",
+    "auditor"
+  ],
+  "protectedNote": "P7 only applies reviewed prompt/skill/config/docs patches by default. Core runtime changes must be manual."
+}

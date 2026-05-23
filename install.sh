@@ -360,19 +360,19 @@ const teamPlugin = path.join(globalConfig, 'plugins', 'team-runtime.js');
 if (!cfg.plugin.some((item) => (Array.isArray(item) ? item[0] : item) === teamPlugin)) cfg.plugin.push(teamPlugin);
 cfg.mcp ||= {};
 const nodeCmd = 'node';
-const mcp = (file, env = {}) => ({
+const mcp = (file, enabled = false, env = {}) => ({
   type: 'local',
   command: [nodeCmd, path.join(globalConfig, 'mcp', file)],
-  enabled: true,
-  environment: { TEAM_PROJECT_ROOT: '.', OPENCODE_TEAM_RUNTIME_ROOT: globalConfig, ...env },
+  enabled,
+  environment: { OPENCODE_TEAM_RUNTIME_ROOT: globalConfig, ...env },
 });
-cfg.mcp.cloakbrowser = mcp('cloakbrowser-mcp.mjs', {
+cfg.mcp.cloakbrowser = mcp('cloakbrowser-mcp.mjs', true, {
   CLOAKBROWSER_HEADLESS: 'false',
   CLOAKBROWSER_HUMANIZE: 'true',
   CLOAKBROWSER_PROFILE_DIR: '.opencode/team/browser/profile',
   CLOAKBROWSER_MANUAL_TIMEOUT_MS: '600000',
 });
-cfg.mcp['browser-bridge'] = mcp('browser-bridge-mcp.mjs', { OPENCODE_BROWSER_BRIDGE_PORT: '37987', OPENCODE_BROWSER_BRIDGE_TOKEN: 'dev-local' });
+cfg.mcp['browser-bridge'] = mcp('browser-bridge-mcp.mjs', true, { OPENCODE_BROWSER_BRIDGE_PORT: '37987', OPENCODE_BROWSER_BRIDGE_TOKEN: 'dev-local' });
 cfg.mcp.research = mcp('research-mcp.mjs');
 cfg.mcp.context = mcp('context-mcp.mjs');
 cfg.mcp.router = mcp('router-mcp.mjs');
