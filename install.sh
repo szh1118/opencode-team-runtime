@@ -458,32 +458,36 @@ if [[ "$INSTALL_LSP" == "1" ]]; then
   fi
 fi
 if [[ "$CONFIGURE_MODELS" == "1" ]]; then
-  echo "" >&9
-  wf_mode="all-in-one" ans_wf=""
-  echo "" >&9
-  msg "选择工作流模式:" "Select workflow mode:" >&9
-  if [[ "$LANG_CHOICE" == "en" ]]; then
-    tty_select ans_wf "1" "All in one - Desktop one-click entrusted (recommended)" "Lean - lighter process" "Research-heavy - enhanced research"
-  else
-    tty_select ans_wf "1" "All in one - Desktop 一键托管 (推荐)" "Lean - 精简流程" "Research-heavy - 强化研究"
+  wf_mode="all-in-one"
+  worker_model="minimax/minimax-m2.7"
+  supervisor_model="deepseek/deepseek-v4-pro"
+  handoff_model="qwen/qwen3.7-max"
+  checkpoint_model="openai/gpt-5.5"
+  if can_prompt; then
+    echo "" >&9
+    ans_wf=""
+    echo "" >&9
+    msg "选择工作流模式:" "Select workflow mode:" >&9
+    if [[ "$LANG_CHOICE" == "en" ]]; then
+      tty_select ans_wf "1" "All in one - Desktop one-click entrusted (recommended)" "Lean - lighter process" "Research-heavy - enhanced research"
+    else
+      tty_select ans_wf "1" "All in one - Desktop 一键托管 (推荐)" "Lean - 精简流程" "Research-heavy - 强化研究"
+    fi
+    case "${ans_wf:-1}" in
+      2) wf_mode="lean" ;;
+      3) wf_mode="research-heavy" ;;
+      *) wf_mode="all-in-one" ;;
+    esac
+    echo "" >&9
+    read_tty_line worker_model "A-zone 编码模型 [minimax/minimax-m2.7]: " || true
+    worker_model="${worker_model:-minimax/minimax-m2.7}"
+    read_tty_line supervisor_model "总工/审核模型 [deepseek/deepseek-v4-pro]: " || true
+    supervisor_model="${supervisor_model:-deepseek/deepseek-v4-pro}"
+    read_tty_line handoff_model "长上下文交接/研究综合模型 [qwen/qwen3.7-max]: " || true
+    handoff_model="${handoff_model:-qwen/qwen3.7-max}"
+    read_tty_line checkpoint_model "最终审计模型 [openai/gpt-5.5]: " || true
+    checkpoint_model="${checkpoint_model:-openai/gpt-5.5}"
   fi
-  case "${ans_wf:-1}" in
-    2) wf_mode="lean" ;;
-    3) wf_mode="research-heavy" ;;
-    *) wf_mode="all-in-one" ;;
-  esac
-
-  worker_model="" supervisor_model="" handoff_model="" checkpoint_model=""
-  echo "" >&9
-  read_tty_line worker_model "A-zone 编码模型 [minimax/minimax-m2.7]: " || true
-  worker_model="${worker_model:-minimax/minimax-m2.7}"
-  read_tty_line supervisor_model "总工/审核模型 [deepseek/deepseek-v4-pro]: " || true
-  supervisor_model="${supervisor_model:-deepseek/deepseek-v4-pro}"
-  read_tty_line handoff_model "长上下文交接/研究综合模型 [qwen/qwen3.7-max]: " || true
-  handoff_model="${handoff_model:-qwen/qwen3.7-max}"
-  read_tty_line checkpoint_model "最终审计模型 [openai/gpt-5.5]: " || true
-  checkpoint_model="${checkpoint_model:-openai/gpt-5.5}"
-
   printf '%s\n%s\n%s\n%s\n%s\n' "$wf_mode" "$worker_model" "$supervisor_model" "$handoff_model" "$checkpoint_model" | node "$GLOBAL_CONFIG/scripts/global-cli.mjs" configure-models || true
 fi
 
