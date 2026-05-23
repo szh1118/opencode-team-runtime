@@ -18,13 +18,28 @@ const VERSION = "0.6.0-p4";
 const TEAM_DIR = [".opencode", "team"];
 const CONTEXT_DIR = [".opencode", "team", "context"];
 const DEFAULT_INDEX = { version: VERSION, createdAt: null, updatedAt: null, chunks: [] };
+const NAMED_CAPS = {
+  ROOT_ERRORS: 20,
+  WARNINGS: 10,
+  TEST_FAILURES: 15,
+  BROWSER_CONSOLE: 25,
+  NETWORK_ERRORS: 20,
+  RECENT_EVENTS: 50,
+  RECENT_EVIDENCE: 30,
+  DAG_TASKS: 40,
+  FILE_INVENTORY: 60,
+  RAW_EVIDENCE_CHARS: 5000,
+  PACK_CHARS: 18000,
+  CHUNK_CHARS: 2400,
+  CHUNK_OVERLAP: 220,
+}
 const DEFAULT_CONFIG = {
   version: VERSION,
-  maxChunkChars: 2200,
+  maxChunkChars: NAMED_CAPS.CHUNK_CHARS,
   chunkOverlapChars: 200,
-  maxStoredTextChars: 5000,
-  defaultSearchLimit: 12,
-  defaultPackMaxChars: 16000,
+  maxStoredTextChars: NAMED_CAPS.RAW_EVIDENCE_CHARS,
+  defaultSearchLimit: 14,
+  defaultPackMaxChars: NAMED_CAPS.PACK_CHARS,
   includeKindsInPack: ["handoff", "evidence", "task", "research", "browser", "session", "source", "note", "diagnostic"],
   noiseLinePatterns: [
     "^\\s*$",
@@ -56,6 +71,56 @@ function tpath(project, ...parts) { return path.join(project, ...TEAM_DIR, ...pa
 function cpath(project, ...parts) { return path.join(project, ...CONTEXT_DIR, ...parts); }
 function truncate(text, max = 4000) { text = String(text ?? ""); return text.length <= max ? text : text.slice(0, max) + `\n...<truncated ${text.length - max} chars>`; }
 function safeJson(x, max = 6000) { try { return truncate(JSON.stringify(x, null, 2), max); } catch { return truncate(String(x), max); } }
+function safeProseShrink(text) {
+  if (!text || typeof text !== "string") return text
+  const protected_regions = []
+  let counter = 0
+  const protect = (pattern, replacer) => {
+    text = text.replace(pattern, (...args) => {
+      const marker = `__P${counter++}__`
+      protected_regions.push({ marker, text: replacer ? replacer(...args) : args[0] })
+      return marker
+    })
+  }
+  protect(/```[\s\S]*?```/g)
+  protect(/`[^`\n]+`/g)
+  protect(/https?:\/\/[^\s)"'<>]+/g)
+  protect(/(?:^|\s)([~/.]?(?:\/[^\s:"'*?|<>]*)+\/?)/g)
+  protect(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)
+  protect(/['"][^'"\n]{0,80}['"]/g)
+  text = text.replace(/\b(the|a|an|is|are|was|were|has|have|had|will|would|could|should|may|might|can|shall|must|be|been|being|do|does|did|it|its|this|that|these|those|there|here|just|really|very|quite|simply|basically|actually|essentially|generally|specifically|typically|usually|normally|clearly|obviously|apparently|perhaps|maybe|possibly|probably|certainly|definitely|absolutely|indeed|also|too|as well|in addition|additionally|furthermore|moreover|however|nevertheless|nonetheless|therefore|thus|hence|consequently|accordingly|meanwhile|subsequently|ultimately|finally|in conclusion|to summarize|in summary|overall|in general|for example|for instance|such as|including|like|namely|specifically|in particular|especially|notably|importantly|significantly|interestingly|surprisingly|remarkably|unfortunately|fortunately|thankfully|hopefully)\b/gi, "")
+  text = text.replace(/^(I will |I'll |I am |I'm |Let me |Let's |You can |You may |We can |We will |We'll |We are |We're |Please note that |It is worth noting that |It should be noted that |Keep in mind that |It is important to |I would like to |I want to |I need to |I should |You should |You need to |You must )/gim, "")
+  text = text.replace(/\s{2,}/g, " ").trim()
+  for (const r of protected_regions) text = text.replace(r.marker, r.text)
+  return text
+}
+
+function compactTestOutput(text, caps) {
+  if (!text) return ""
+  const lines = text.split("\n").filter(Boolean)
+  let passed = 0, failed = 0, failures = []
+  for (const l of lines) {
+    if (/pass(ed|ing)?/i.test(l) || /ok/i.test(l)) passed++
+    if (/fail(ure|ed|ing)?/i.test(l) || /error/i.test(l) || /FAIL/i.test(l)) { failed++; if (failures.length < caps.TEST_FAILURES) failures.push(l.slice(0, 180)) }
+  }
+  let out = `TESTS: ${passed} passed, ${failed} failed`
+  if (failures.length) out += "\nFailures:\n" + failures.map(f => "  " + f).join("\n")
+  if (failed > caps.TEST_FAILURES) out += `\n...+${failed - caps.TEST_FAILURES} more failures`
+  return out
+}
+
+function compactBrowserOutput(text, caps) {
+  if (!text) return ""
+  const lines = text.split("\n").filter(Boolean)
+  const console = { errors: 0, warns: 0 }
+  const network = { errs: 0 }
+  for (const l of lines) {
+    if (/error/i.test(l)) console.errors++
+    if (/warn(ing)?/i.test(l)) console.warns++
+    if (/404|500|503|timeout|refused|ENOTFOUND/i.test(l)) network.errs++
+  }
+  return `BROWSER: console errors ${console.errors}, warnings ${console.warns}, network issues ${network.errs}`
+}
 
 function usage() {
   console.log(`opencode-team-runtime context ${VERSION}
@@ -229,7 +294,7 @@ function listFiles(dir, opts = {}) {
       if (out.length >= maxFiles) break;
       const p = path.join(d, e.name);
       if (e.isDirectory()) {
-        if (["node_modules", ".git", "profile"].includes(e.name)) continue;
+        if (["node_modules", ".git", "profile", ".next", "target", "dist", "build", ".cache", ".turbo", ".pytest_cache", ".mypy_cache", "__pycache__", ".venv", "venv", "env", ".env", ".tox", ".eggs", "coverage", "htmlcov", ".nyc_output", ".svelte-kit", ".astro", "out", ".parcel-cache", "bower_components", "vendor", ".terraform", ".serverless"].includes(e.name)) continue;
         walk(p);
       } else if (!exts || exts.some(x => e.name.endsWith(x))) out.push(p);
     }
@@ -554,7 +619,17 @@ async function main(argv = process.argv.slice(2)) {
     const file = opts.file || (opts.command === "compact-shell" ? opts.query : "");
     const text = opts.text || (file ? readText(path.resolve(project, file)) : opts.query);
     const kind = opts.command === "compact-shell" ? "shell" : opts.kind;
-    const result = compressText(text, { kind, maxChars: opts.maxChars || 12000, config: loadConfig(project) });
+    const caps = NAMED_CAPS;
+    const config = loadConfig(project);
+    let result;
+    if (kind === "browser") {
+      result = { text: compactBrowserOutput(text, caps), method: "compact-browser" };
+    } else if (kind === "research") {
+      result = compactTestOutput(text, caps);
+      result = { text: result, method: "compact-test" };
+    } else {
+      result = compressText(text, { kind, maxChars: opts.maxChars || config.maxStoredTextChars || NAMED_CAPS.RAW_EVIDENCE_CHARS, config });
+    }
     console.log(result.text);
     return;
   }
@@ -568,4 +643,4 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   });
 }
 
-export { ensure, ingestAll, search, renderPack, writePack, compressText, status, addDocument };
+export { ensure, ingestAll, search, renderPack, writePack, compressText, compactTestOutput, compactBrowserOutput, status, addDocument };

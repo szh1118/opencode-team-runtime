@@ -10,15 +10,12 @@ BIN_DIR="${OPENCODE_TEAM_BIN:-$HOME/.local/bin}"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 GLOBAL_CONFIG="${OPENCODE_CONFIG_DIR:-}"
 YES=0
-INSTALL_CONTEXT7=1
 INSTALL_LSP=1
 INSTALL_BROWSER_DEPS=1
 CONFIGURE_MODELS=auto
 SKIP_CLONE=0
 SKIP_NPM="${OPENCODE_TEAM_SKIP_NPM:-0}"
 LANG_CHOICE="${OPENCODE_TEAM_LANG:-auto}"
-CONTEXT7_API_KEY_VALUE="${CONTEXT7_API_KEY:-}"
-CONTEXT7_EXPLICIT=0
 LSP_EXPLICIT=0
 BROWSER_EXPLICIT=0
 MODELS_EXPLICIT=0
@@ -39,12 +36,11 @@ Options:
   --install-root DIR           Clone/update repo here when bootstrap mode is used
   --config-dir DIR             OpenCode global config/runtime dir. Default: auto-detect
   --bin-dir DIR                CLI wrapper dir. Default: ~/.local/bin
-  --context7 / --no-context7   Enable/disable Context7 MCP config. Default: enabled
   --lsp / --no-lsp             Enable/disable LSP config and common LSP dependency install. Default: enabled
   --browser-deps / --no-browser-deps
                                Install/skip CloakBrowser + Playwright deps. Default: enabled
   --configure-models / --no-configure-models
-                               Run/skip model configuration wizard after install
+                                Run/skip workflow and role model configuration after install
   --skip-npm                   Do not run npm install; useful for offline packaging tests
   --help                       Show this help
 
@@ -52,21 +48,28 @@ Environment:
   OPENCODE_CONFIG_DIR          Override OpenCode global config dir
   OPENCODE_TEAM_REPO_URL       Override clone URL
   OPENCODE_TEAM_BRANCH         Override branch/ref
-  CONTEXT7_API_KEY             Optional Context7 API key. If provided in non-interactive mode, it is written into the Context7 MCP header.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --yes|-y) YES=1 ;;
-    --lang) LANG_CHOICE="$2"; shift ;;
-    --repo-url) REPO_URL="$2"; shift ;;
-    --branch) BRANCH="$2"; shift ;;
-    --install-root) INSTALL_ROOT="$2"; shift ;;
-    --config-dir) GLOBAL_CONFIG="$2"; shift ;;
-    --bin-dir) BIN_DIR="$2"; shift ;;
-    --context7) INSTALL_CONTEXT7=1; CONTEXT7_EXPLICIT=1 ;;
-    --no-context7) INSTALL_CONTEXT7=0; CONTEXT7_EXPLICIT=1 ;;
+    --lang|--repo-url|--branch|--install-root|--config-dir|--bin-dir)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        echo "Missing value for option: $1" >&2
+        usage
+        exit 2
+      fi
+      case "$1" in
+        --lang) LANG_CHOICE="$2" ;;
+        --repo-url) REPO_URL="$2" ;;
+        --branch) BRANCH="$2" ;;
+        --install-root) INSTALL_ROOT="$2" ;;
+        --config-dir) GLOBAL_CONFIG="$2" ;;
+        --bin-dir) BIN_DIR="$2" ;;
+      esac
+      shift
+      ;;
     --lsp) INSTALL_LSP=1; LSP_EXPLICIT=1 ;;
     --no-lsp) INSTALL_LSP=0; LSP_EXPLICIT=1 ;;
     --browser-deps) INSTALL_BROWSER_DEPS=1; BROWSER_EXPLICIT=1 ;;
@@ -86,7 +89,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 TTY_DEVICE="${OPENCODE_TEAM_TTY:-/dev/tty}"
 TTY_FD_OPEN=0
 if [[ -r "$TTY_DEVICE" && -w "$TTY_DEVICE" ]]; then
-  exec 9<>"$TTY_DEVICE" 2>/dev/null && TTY_FD_OPEN=1 || TTY_FD_OPEN=0
+  { exec 9<>"$TTY_DEVICE"; } 2>/dev/null && TTY_FD_OPEN=1 || TTY_FD_OPEN=0
 fi
 tty_available() { [[ "$TTY_FD_OPEN" == "1" ]]; }
 can_prompt() { [[ "$YES" != "1" ]] && tty_available; }
@@ -210,7 +213,6 @@ if [[ ! -d "$SRC_DIR/.opencode" && "$SKIP_CLONE" != "1" ]]; then
 
   REEXEC_ARGS=(--skip-clone --repo-url "$REPO_URL" --branch "$BRANCH" --install-root "$INSTALL_ROOT" --bin-dir "$BIN_DIR" --lang "$LANG_CHOICE")
   [[ "$YES" == "1" ]] && REEXEC_ARGS+=(--yes)
-  if [[ "$CONTEXT7_EXPLICIT" == "1" ]]; then [[ "$INSTALL_CONTEXT7" == "1" ]] && REEXEC_ARGS+=(--context7) || REEXEC_ARGS+=(--no-context7); fi
   if [[ "$LSP_EXPLICIT" == "1" ]]; then [[ "$INSTALL_LSP" == "1" ]] && REEXEC_ARGS+=(--lsp) || REEXEC_ARGS+=(--no-lsp); fi
   if [[ "$BROWSER_EXPLICIT" == "1" ]]; then [[ "$INSTALL_BROWSER_DEPS" == "1" ]] && REEXEC_ARGS+=(--browser-deps) || REEXEC_ARGS+=(--no-browser-deps); fi
   if [[ "$MODELS_EXPLICIT" == "1" ]]; then [[ "$CONFIGURE_MODELS" == "1" ]] && REEXEC_ARGS+=(--configure-models) || REEXEC_ARGS+=(--no-configure-models); fi
@@ -257,6 +259,7 @@ for required in \
   "$SRC_DIR/.opencode/scripts/global-cli.mjs" \
   "$SRC_DIR/.opencode/plugins/team-runtime.js" \
   "$SRC_DIR/.opencode/mcp/overnight-mcp.mjs" \
+  "$SRC_DIR/.opencode/agents/a-zone-coder.md" \
   "$SRC_DIR/.opencode/agents/chief-engineer.md"; do
   if [[ ! -f "$required" ]]; then
     echo "ERROR: required runtime file is missing: $required" >&2
@@ -300,9 +303,6 @@ else
 fi
 
 if can_prompt; then
-  if [[ "$CONTEXT7_EXPLICIT" != "1" ]]; then
-    ask_yes_no_i18n "是否启用 Context7 MCP？选择是后需要输入 Context7 API Key。" "Enable Context7 MCP? If yes, you will be asked for a Context7 API key." "Y" && INSTALL_CONTEXT7=1 || INSTALL_CONTEXT7=0
-  fi
   if [[ "$LSP_EXPLICIT" != "1" ]]; then
     ask_yes_no_i18n "是否启用 OpenCode LSP 并安装常用语言服务器？" "Enable OpenCode LSP and install common language servers?" "Y" && INSTALL_LSP=1 || INSTALL_LSP=0
   fi
@@ -312,22 +312,8 @@ if can_prompt; then
   fi
 fi
 
-if [[ "$INSTALL_CONTEXT7" == "1" && -z "${CONTEXT7_API_KEY_VALUE:-}" ]] && can_prompt; then
-  while [[ -z "${CONTEXT7_API_KEY_VALUE:-}" ]]; do
-    if [[ "$LANG_CHOICE" == "en" ]]; then
-      read_tty_secret CONTEXT7_API_KEY_VALUE "Context7 API Key: " || true
-    else
-      read_tty_secret CONTEXT7_API_KEY_VALUE "请输入 Context7 API Key: " || true
-    fi
-    echo ""
-    if [[ -z "${CONTEXT7_API_KEY_VALUE:-}" ]]; then
-      msg "Context7 API Key 不能为空；如果不想配置，请重新运行并选择不启用 Context7。" "Context7 API key cannot be empty; rerun and choose not to enable Context7 if you want to skip it."
-    fi
-  done
-fi
-
 if [[ "$CONFIGURE_MODELS" == "auto" ]]; then
-  if ask_yes_no_i18n "现在运行模型配置向导？它会读取现有 OpenCode 配置里的模型候选。" "Run model configuration wizard now? It reads model candidates from your current OpenCode config." "N"; then
+  if ask_yes_no_i18n "现在配置团队工作流和各岗位使用的模型？" "Configure team workflow mode and role models now?" "N"; then
     CONFIGURE_MODELS=1
   else
     CONFIGURE_MODELS=0
@@ -339,14 +325,12 @@ if [[ -f "$CONFIG_FILE" ]]; then
   cp "$CONFIG_FILE" "$CONFIG_FILE.bak.$(date +%Y%m%d%H%M%S)"
 fi
 
-INSTALL_CONTEXT7="$INSTALL_CONTEXT7" INSTALL_LSP="$INSTALL_LSP" CONTEXT7_API_KEY_VALUE="$CONTEXT7_API_KEY_VALUE" node --input-type=module - "$CONFIG_FILE" "$GLOBAL_CONFIG" <<'NODE'
+INSTALL_LSP="$INSTALL_LSP" node --input-type=module - "$CONFIG_FILE" "$GLOBAL_CONFIG" <<'NODE'
 import fs from 'node:fs';
 import path from 'node:path';
 
 const [configFile, globalConfig] = process.argv.slice(2);
-const installContext7 = process.env.INSTALL_CONTEXT7 === '1';
 const installLsp = process.env.INSTALL_LSP === '1';
-const context7Key = process.env.CONTEXT7_API_KEY_VALUE || '';
 function stripJsonc(input) {
   let out = '', inString = false, quote = '', esc = false;
   for (let i = 0; i < input.length; i++) {
@@ -397,14 +381,6 @@ cfg.mcp.router = mcp('router-mcp.mjs');
 cfg.mcp.memory = mcp('memory-mcp.mjs');
 cfg.mcp.patch = mcp('patch-mcp.mjs');
 cfg.mcp.overnight = mcp('overnight-mcp.mjs');
-if (installContext7) {
-  cfg.mcp.context7 = {
-    type: 'remote',
-    url: 'https://mcp.context7.com/mcp',
-    enabled: true,
-    headers: { CONTEXT7_API_KEY: context7Key || '{env:CONTEXT7_API_KEY}' },
-  };
-}
 if (installLsp) {
   cfg.lsp = cfg.lsp === false ? true : (cfg.lsp ?? true);
   cfg.permission ||= {};
@@ -501,7 +477,7 @@ echo "Global CLI wrappers: $BIN_DIR"
 echo "Updated: $CONFIG_FILE"
 echo ""
 echo "Desktop usage: open any project in OpenCode Desktop and run /team-overnight or /team-plan."
-echo "One-time model wizard: opencode-team configure-models"
+echo "One-time workflow/model wizard: opencode-team configure-models"
 echo "Project state, when needed: opencode-team init /path/to/project"
 echo "Chrome bridge: opencode-team chrome-bridge serve, then load $GLOBAL_CONFIG/browser-extension in Chrome."
 if [[ "$INSTALL_LSP" == "1" ]]; then

@@ -1,0 +1,23 @@
+{
+  "version": "0.6.0-p4",
+  "source": {
+    "id": "src-11fd7ed4ff",
+    "title": "Reference pack repository rules CLAUDE.md",
+    "url": "/tmp/opencode/reference-study-skills/skills-main/CLAUDE.md",
+    "contentType": "text/plain",
+    "addedAt": "2026-05-23T08:10:32.669Z",
+    "fetched": false,
+    "textChars": 798,
+    "chunkCount": 1,
+    "chunkFile": ".opencode/team/research/chunks/src-11fd7ed4ff.json",
+    "notes": ""
+  },
+  "chunks": [
+    {
+      "id": "c0001",
+      "index": 0,
+      "text": "Skills are organized into bucket folders under `skills/`:\n\n- `engineering/` — daily code work - `productivity/` — daily non-code workflow tools - `misc/` — kept around but rarely used - `personal/` — tied to my own setup, not promoted - `in-progress/` — drafts not yet ready to ship - `deprecated/` — no longer used\n\nEvery skill in `engineering/`, `productivity/`, or `misc/` must have a reference in the top-level `README.md` and an entry in `.claude-plugin/plugin.json`. Skills in `personal/`, `in-progress/`, and `deprecated/` must not appear in either.\n\nEach skill entry in the top-level `README.md` must link the skill name to its `SKILL.md`.\n\nEach bucket folder has a `README.md` that lists every skill in the bucket with a one-line description, with the skill name linked to its `SKILL.md`.",
+      "chars": 797
+    }
+  ]
+}

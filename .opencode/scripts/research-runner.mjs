@@ -43,6 +43,11 @@ Usage:
   opencode-research report [--topic TOPIC] [--out FILE] [--project DIR]
   opencode-research search "QUERY" [--browser cloak|bridge|none] [--project DIR]
   opencode-research run "QUESTION" [--execute] [--project DIR]
+  opencode-research plan "TOPIC" [--project DIR] [--depth N] [--breadth N]
+  opencode-research discover "QUERY" [--project DIR] [--browser cloak] [--fetch]
+  opencode-research curate [--project DIR] [--source-ids a,b] [--json]
+  opencode-research deep "TOPIC" [--project DIR] [--depth N] [--breadth N] [--browser cloak] [--fetch] [--execute]
+  opencode-research deep-report "TOPIC" [--project DIR] [--out FILE]
   opencode-research doctor [--project DIR]
 
 The runner is deterministic. It does not claim a source supports a statement unless
@@ -53,7 +58,7 @@ that claim cites a source/chunk and validate marks it as supported or weak.
 function parseArgs(argv) {
   const args = [...argv];
   const command = args.shift() || "help";
-  const opts = { command, project: process.cwd(), _: [], title: "", url: "", file: "", out: "", topic: "", evidence: "", kind: "fact", confidence: null, fetch: true, browser: "none", minScore: 0.18, execute: false };
+  const opts = { command, project: process.cwd(), _: [], title: "", url: "", file: "", out: "", topic: "", evidence: "", kind: "fact", confidence: null, fetch: true, browser: "cloak", minScore: 0.18, execute: false, depth: 2, breadth: 3, sourceIds: "" };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--project" || a === "--dir" || a === "-C") opts.project = path.resolve(args[++i]);
@@ -70,6 +75,9 @@ function parseArgs(argv) {
     else if (a === "--browser") opts.browser = args[++i] || "none";
     else if (a === "--min-score") opts.minScore = Number(args[++i]);
     else if (a === "--execute" || a === "--yes") opts.execute = true;
+    else if (a === "--depth") opts.depth = Number(args[++i]);
+    else if (a === "--breadth") opts.breadth = Number(args[++i]);
+    else if (a === "--source-ids") opts.sourceIds = args[++i] || "";
     else opts._.push(a);
   }
   opts.text = opts._.join(" ").trim();
@@ -338,6 +346,184 @@ function runResearchAgent(project, question, execute) {
   return { ok: res.status === 0, status: res.status, log: path.relative(project, log), stdout: truncate(res.stdout, 3000), stderr: truncate(res.stderr, 3000) };
 }
 
+function planQueries(topic, depth = 2, breadth = 3) {
+  const t = String(topic || "").trim()
+  if (!t) throw new Error("topic required")
+  const stems = []
+  if (depth >= 1) stems.push(t)
+  const angles = ["overview", "implementation", "comparison", "limitations", "alternatives", "best-practices", "architecture", "performance", "security", "ecosystem"]
+  const d1 = angles.slice(0, Math.min(breadth, angles.length)).map(a => `${t} ${a}`)
+  for (const q of d1) stems.push(q)
+  const nodes = [{ query: t, depth: 0, parent: null }]
+  for (const q of d1) nodes.push({ query: q, depth: 1, parent: t })
+  const followUps = ["benchmarks", "community", "migration", "integration", "tutorials", "production", "scaling", "debugging", "tooling"]
+  if (depth >= 3) {
+    for (let i = 0; i < Math.min(breadth, d1.length); i++) {
+      for (const f of followUps.slice(0, 2)) {
+        const q = `${d1[i]} ${f}`
+        stems.push(q)
+        nodes.push({ query: q, depth: 2, parent: d1[i] })
+      }
+    }
+  }
+  return { topic, depth, breadth, queryCount: stems.length, queries: stems, nodes }
+}
+
+function sourceCredibility(source) {
+  let score = 0.4
+  const url = String(source.url || "").toLowerCase()
+  if (/\.(gov|edu|mil)\b/.test(url)) score += 0.35
+  else if (/\.org\b/.test(url)) score += 0.2
+  else if (/github\.com/.test(url)) score += 0.25
+  else if (/(arxiv|paperswithcode|semanticscholar|acm|ieee)\./.test(url)) score += 0.3
+  else if (/(stackoverflow|stackexchange|superuser)\./.test(url)) score += 0.15
+  else if (/(wikipedia|docs\.rs|pkg\.go\.dev|maven|pypi\.org|npmjs\.com|crates\.io)/.test(url)) score += 0.1
+  else if (/\.(io|dev|ai|tech|app)\b/.test(url)) score += 0.0
+  else score += 0.05 // general .com
+  if (/(blog|medium|dev\.to|hashnode|substack|twitter|reddit|hackernews|news\.ycombinator)/.test(url)) score -= 0.15
+  if (source.textChars > 8000) score += 0.1
+  else if (source.textChars < 400) score -= 0.2
+  if (source.fetched) score += 0.05
+  if (source.title && !/^(untitled|unknown|no title)/i.test(source.title)) score += 0.05
+  return Math.max(0, Math.min(1, Number(score.toFixed(3))))
+}
+
+function curateSources(project, opts = {}) {
+  ensure(project)
+  const db = loadSources(project)
+  let candidates = db.sources
+  if (opts.sourceIds) {
+    const ids = new Set(String(opts.sourceIds).split(",").map(s => s.trim()).filter(Boolean))
+    candidates = db.sources.filter(s => ids.has(s.id))
+  }
+  const ranked = candidates.map(s => ({
+    id: s.id,
+    title: s.title,
+    url: s.url,
+    textChars: s.textChars || 0,
+    chunkCount: s.chunkCount || 0,
+    fetched: s.fetched || false,
+    credibility: sourceCredibility(s),
+    curatedAt: now(),
+  })).sort((a, b) => b.credibility - a.credibility)
+  return {
+    ok: true,
+    total: ranked.length,
+    highCredibility: ranked.filter(r => r.credibility >= 0.6).length,
+    mediumCredibility: ranked.filter(r => r.credibility >= 0.35 && r.credibility < 0.6).length,
+    lowCredibility: ranked.filter(r => r.credibility < 0.35).length,
+    sources: ranked,
+  }
+}
+
+function discoverSources(project, query, browser = "cloak") {
+  ensure(project)
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`
+  const browserRunner = path.join(RUNTIME_ROOT, "scripts", "browser-runner.mjs")
+  if (!fs.existsSync(browserRunner)) return { ok: false, error: "browser-runner not found", searchUrl }
+  let searchResult = null
+  if (browser === "cloak" || browser === "bridge") {
+    const args = [browserRunner, "digest", searchUrl, "--project", project, "--mark"]
+    if (browser === "cloak") args.push("--manual")
+    const res = spawnSync(process.execPath, args, { cwd: project, encoding: "utf8", maxBuffer: 50 * 1024 * 1024, env: process.env })
+    searchResult = { ok: res.status === 0, stdout: (res.stdout || "").slice(0, 20000), stderr: res.stderr }
+  }
+  const urls = []
+  if (searchResult?.stdout) {
+    const urlRe = /https?:\/\/[^\s"'<>\[\]]{8,}/g
+    let m
+    while ((m = urlRe.exec(searchResult.stdout)) !== null) {
+      const u = m[0].replace(/[.,;:)}\]>]+$/, "")
+      if (!/(google|facebook|twitter|youtube|instagram|linkedin|apple|bing|yahoo)/i.test(u)) urls.push(u)
+    }
+  }
+  const unique = [...new Set(urls)].slice(0, 15)
+  return {
+    ok: !!searchResult?.ok,
+    query,
+    searchUrl,
+    browser,
+    urlsDiscovered: unique.length,
+    urls: unique,
+    searchResult,
+  }
+}
+
+async function deepResearch(project, topic, opts = {}) {
+  ensure(project)
+  const depth = Number(opts.depth || 2)
+  const breadth = Number(opts.breadth || 3)
+  const browser = opts.browser || "cloak"
+  const plan = planQueries(topic, depth, breadth)
+  const results = { plan, phases: [], sourcesAdded: 0, claimsAdded: 0, errors: [] }
+  const visited = new Set()
+  for (let d = 0; d < Math.min(depth, plan.nodes.length ? 999 : 0); d++) {
+    const levelQueries = plan.nodes.filter(n => n.depth === d)
+    if (!levelQueries.length) continue
+    const phase = { depth: d, queries: levelQueries.length, discovered: 0, added: 0, errors: 0 }
+    for (const n of levelQueries) {
+      try {
+        const discovery = discoverSources(project, n.query, browser)
+        phase.discovered += discovery.urls?.length || 0
+        if (discovery.urls && opts.fetch !== false) {
+          for (const url of discovery.urls) {
+            if (visited.has(url)) continue
+            visited.add(url)
+            try {
+              const data = await readSourceContent({ url, title: "", project })
+              if (data.text && data.text.length > 100) {
+                const added = addSource(project, data)
+                results.sourcesAdded++
+                // Auto-claim: one basic fact claim per source as starting point
+                // Claims are low-confidence by default; validate step later.
+              }
+              phase.added++
+            } catch { phase.errors++ }
+          }
+        }
+      } catch (err) {
+        results.errors.push({ query: n.query, error: err.message })
+      }
+    }
+    results.phases.push(phase)
+  }
+  // Curate after discovery
+  const curation = curateSources(project)
+  results.curation = curation
+  recordTeamEvidence(project, { type: "source", title: `Deep research completed: ${topic}`, status: "recorded", summary: `Queries: ${plan.queryCount}, Sources added: ${results.sourcesAdded}, Depth: ${depth}, High credibility: ${curation.highCredibility}, Medium: ${curation.mediumCredibility}, Low: ${curation.lowCredibility}` })
+  return results
+}
+
+function deepResearchReport(project, topic, outFile = "") {
+  ensure(project)
+  const sources = loadSources(project).sources
+  const claims = loadClaims(project).claims
+  const curation = curateSources(project)
+  const out = outFile ? path.resolve(project, outFile) : rpath(project, "reports", `deep-report-${Date.now()}.md`)
+  let md = `# Deep Research: ${topic}\n\nGenerated: ${now()}\n\n`
+  md += `## Summary\n\n`
+  md += `- Sources: ${sources.length} total, ${curation.highCredibility} high credibility, ${curation.mediumCredibility} medium, ${curation.lowCredibility} low\n`
+  md += `- Claims: ${claims.length} recorded, ${claims.filter(c => c.status === "supported").length} supported, ${claims.filter(c => c.status === "unsupported").length} unsupported\n`
+  md += `- Unvalidated claims: ${claims.filter(c => c.status === "unvalidated").length}\n\n`
+  md += `## Source Credibility Rankings\n\n`
+  md += `| Credibility | Source | Title | Chars |\n|---|---|---|---|\n`
+  for (const s of curation.sources.slice(0, 30)) {
+    md += `| ${s.credibility.toFixed(2)} | [${s.id}] ${(s.url || "").slice(0, 60)} | ${(s.title || "").slice(0, 80)} | ${s.textChars} |\n`
+  }
+  md += `\n## Claims by Status\n\n`
+  md += `### Supported\n\n`
+  for (const c of claims.filter(c => c.status === "supported")) md += `- ${c.id}: ${c.text.slice(0, 200)}\n`
+  md += `\n### Weak\n\n`
+  for (const c of claims.filter(c => c.status === "weak")) md += `- ${c.id}: ${c.text.slice(0, 200)}\n`
+  md += `\n### Unsupported\n\n`
+  for (const c of claims.filter(c => c.status === "unsupported" || c.status === "unvalidated")) md += `- ${c.id}: ${c.text.slice(0, 200)}\n`
+  md += `\n## Sources\n\n`
+  for (const s of curation.sources) md += `- ${s.id} [${s.credibility.toFixed(2)}]: ${(s.title || s.url).slice(0, 120)}\n`
+  writeText(out, md)
+  recordTeamEvidence(project, { type: "source", title: `Deep research report: ${topic}`, path: path.relative(project, out), status: "recorded", summary: `Report written with ${curation.sources.length} ranked sources and ${claims.length} claims.` })
+  return { ok: true, path: path.relative(project, out), sources: curation.sources.length, claims: claims.length, highCredibility: curation.highCredibility }
+}
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   const project = path.resolve(opts.project);
@@ -374,6 +560,26 @@ async function main() {
   if (opts.command === "run") {
     if (!opts.text) throw new Error("question required");
     return console.log(JSON.stringify(runResearchAgent(project, opts.text, opts.execute), null, 2));
+  }
+  if (opts.command === "plan") {
+    if (!opts.text) throw new Error("topic required");
+    return console.log(JSON.stringify(planQueries(opts.text, opts.depth, opts.breadth), null, 2));
+  }
+  if (opts.command === "discover") {
+    if (!opts.text) throw new Error("query required");
+    return console.log(JSON.stringify(discoverSources(project, opts.text, opts.browser), null, 2));
+  }
+  if (opts.command === "curate") {
+    return console.log(JSON.stringify(curateSources(project, { sourceIds: opts.sourceIds }), null, 2));
+  }
+  if (opts.command === "deep") {
+    if (!opts.text) throw new Error("topic required");
+    const result = await deepResearch(project, opts.text, { depth: opts.depth, breadth: opts.breadth, browser: opts.browser, fetch: opts.fetch });
+    return console.log(JSON.stringify(result, null, 2));
+  }
+  if (opts.command === "deep-report") {
+    if (!opts.text) throw new Error("topic required");
+    return console.log(JSON.stringify(deepResearchReport(project, opts.text, opts.out), null, 2));
   }
   throw new Error(`Unknown command: ${opts.command}`);
 }

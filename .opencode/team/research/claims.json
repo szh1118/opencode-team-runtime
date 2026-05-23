@@ -1,0 +1,253 @@
+{
+  "version": "0.6.0-p4",
+  "createdAt": "2026-05-23T08:10:00.750Z",
+  "updatedAt": "2026-05-23T08:10:42.033Z",
+  "claims": [
+    {
+      "id": "claim-e648dcd511",
+      "text": "Reference packs use directories containing SKILL.md with YAML front matter; descriptions are treated as the activation surface and should include specific triggers.",
+      "kind": "fact",
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "sourceId": "src-1c26f289b5",
+          "chunkId": "c0001",
+          "ref": "src-1c26f289b5#c0001"
+        },
+        {
+          "sourceId": "src-1c26f289b5",
+          "chunkId": "c0002",
+          "ref": "src-1c26f289b5#c0002"
+        }
+      ],
+      "status": "supported",
+      "validation": {
+        "validatedAt": "2026-05-23T08:10:42.030Z",
+        "minScore": 0.18,
+        "bestScore": 0.4,
+        "evidence": [
+          {
+            "ref": "src-1c26f289b5#c0001",
+            "sourceTitle": "Reference skill: write-a-skill SKILL.md",
+            "url": "/tmp/opencode/reference-study-skills/skills-main/skills/productivity/write-a-skill/SKILL.md",
+            "score": 0.4,
+            "snippet": "--- name: write-a-skill description: Create new agent skills with proper structure, progressive disclosure, and bundled resources. Use when user wants to create, write, or build a new skill. ---\n\n# Writing Skills\n\n## Process\n\n1. **Gather requirements** - ask user about: - What task/domain does the skill cover? - What specific use cases should it handle? - Does it need executable scripts or just instructions? - Any re\n...<truncated 1288 chars>"
+          },
+          {
+            "ref": "src-1c26f289b5#c0002",
+            "sourceTitle": "Reference skill: write-a-skill SKILL.md",
+            "url": "/tmp/opencode/reference-study-skills/skills-main/skills/productivity/write-a-skill/SKILL.md",
+            "score": 0.2,
+            "snippet": "1. What capability this skill provides 2. When/why to trigger it (specific keywords, contexts, file types)\n\n**Format**:\n\n- Max 1024 chars - Write in third person - First sentence: what it does - Second sentence: \"Use when [specific triggers]\"\n\n**Good example**:\n\n``` Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when user mentions PDFs, forms, or document extra\n...<truncated 828 chars>"
+          }
+        ],
+        "note": "Lexical support found. Human/model reviewer should still verify meaning."
+      },
+      "createdAt": "2026-05-23T08:10:13.752Z",
+      "updatedAt": "2026-05-23T08:10:42.031Z"
+    },
+    {
+      "id": "claim-119fcb8058",
+      "text": "The Matt Pocock pack publishes a pack manifest via .claude-plugin/plugin.json listing installable skill directories, while excluding draft/deprecated/personal skills from the promoted manifest per repository rules.",
+      "kind": "fact",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "sourceId": "src-3608999c9f",
+          "chunkId": "c0001",
+          "ref": "src-3608999c9f#c0001"
+        }
+      ],
+      "status": "unsupported",
+      "validation": {
+        "validatedAt": "2026-05-23T08:10:42.031Z",
+        "minScore": 0.18,
+        "bestScore": 0.048,
+        "evidence": [
+          {
+            "ref": "src-3608999c9f#c0001",
+            "sourceTitle": "Reference skill pack plugin manifest",
+            "url": "/tmp/opencode/reference-study-skills/skills-main/.claude-plugin/plugin.json",
+            "score": 0.047619047619047616,
+            "snippet": "{ \"name\": \"mattpocock-skills\", \"skills\": [ \"./skills/engineering/diagnose\", \"./skills/engineering/grill-with-docs\", \"./skills/engineering/triage\", \"./skills/engineering/improve-codebase-architecture\", \"./skills/engineering/setup-matt-pocock-skills\", \"./skills/engineering/tdd\", \"./skills/engineering/to-issues\", \"./skills/engineering/to-prd\", \"./skills/engineering/zoom-out\", \"./skills/engineering/prototype\", \"./skills/\n...<truncated 131 chars>"
+          }
+        ],
+        "note": "No adequate lexical support found."
+      },
+      "createdAt": "2026-05-23T08:10:13.775Z",
+      "updatedAt": "2026-05-23T08:10:42.031Z"
+    },
+    {
+      "id": "claim-838ad04cc1",
+      "text": "The setup skill demonstrates progressive disclosure: first install a lightweight activation skill, then scaffold per-repo docs that downstream skills read instead of putting tracker/domain details in every skill prompt.",
+      "kind": "fact",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "sourceId": "src-7a8532ff65",
+          "chunkId": "c0001",
+          "ref": "src-7a8532ff65#c0001"
+        },
+        {
+          "sourceId": "src-7a8532ff65",
+          "chunkId": "c0002",
+          "ref": "src-7a8532ff65#c0002"
+        },
+        {
+          "sourceId": "src-7a8532ff65",
+          "chunkId": "c0003",
+          "ref": "src-7a8532ff65#c0003"
+        }
+      ],
+      "status": "supported",
+      "validation": {
+        "validatedAt": "2026-05-23T08:10:42.032Z",
+        "minScore": 0.18,
+        "bestScore": 0.455,
+        "evidence": [
+          {
+            "ref": "src-7a8532ff65#c0001",
+            "sourceTitle": "Reference skill: setup-matt-pocock-skills SKILL.md",
+            "url": "/tmp/opencode/reference-study-skills/skills-main/skills/engineering/setup-matt-pocock-skills/SKILL.md",
+            "score": 0.45454545454545453,
+            "snippet": "--- name: setup-matt-pocock-skills description: Sets up an `## Agent skills` block in AGENTS.md/CLAUDE.md and `docs/agents/` so the engineering skills know this repo's issue tracker (GitHub or local markdown), triage label vocabulary, and domain doc layout. Run before first use of `to-issues`, `to-prd`, `triage`, `diagnose`, `tdd`, `improve-codebase-architecture`, or `zoom-out` — or if those skills appear to be missi\n...<truncated 1222 chars>"
+          },
+          {
+            "ref": "src-7a8532ff65#c0003",
+            "sourceTitle": "Reference skill: setup-matt-pocock-skills SKILL.md",
+            "url": "/tmp/opencode/reference-study-skills/skills-main/skills/engineering/setup-matt-pocock-skills/SKILL.md",
+            "score": 0.3181818181818182,
+            "snippet": "> Explainer: When the `triage` skill processes an incoming issue, it moves it through a state machine — needs evaluation, waiting on reporter, ready for an AFK agent to pick up, ready for a human, or won't fix. To do that, it needs to apply labels (or the equivalent in your issue tracker) that match strings *you've actually configured*. If your repo already uses different label names (e.g. `bug:triage` instead of `ne\n...<truncated 1218 chars>"
+          },
+          {
+            "ref": "src-7a8532ff65#c0002",
+            "sourceTitle": "Reference skill: setup-matt-pocock-skills SKILL.md",
+            "url": "/tmp/opencode/reference-study-skills/skills-main/skills/engineering/setup-matt-pocock-skills/SKILL.md",
+            "score": 0.18181818181818182,
+            "snippet": "Summarise what's present and what's missing. Then walk the user through the three decisions **one at a time** — present a section, get the user's answer, then move to the next. Don't dump all three at once.\n\nAssume the user does not know what these terms mean. Each section starts with a short explainer (what it is, why these skills need it, what changes if they pick differently). Then show the choices and the default\n...<truncated 1118 chars>"
+          }
+        ],
+        "note": "Lexical support found. Human/model reviewer should still verify meaning."
+      },
+      "createdAt": "2026-05-23T08:10:13.802Z",
+      "updatedAt": "2026-05-23T08:10:42.032Z"
+    },
+    {
+      "id": "claim-800b32bdd3",
+      "text": "Karpathy guidelines are a compact always-use coding behavior skill centered on explicit assumptions, simplicity, surgical diffs, and verification loops.",
+      "kind": "fact",
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "sourceId": "src-175d7098a0",
+          "chunkId": "c0001",
+          "ref": "src-175d7098a0#c0001"
+        },
+        {
+          "sourceId": "src-175d7098a0",
+          "chunkId": "c0002",
+          "ref": "src-175d7098a0#c0002"
+        }
+      ],
+      "status": "supported",
+      "validation": {
+        "validatedAt": "2026-05-23T08:10:42.032Z",
+        "minScore": 0.18,
+        "bestScore": 0.4,
+        "evidence": [
+          {
+            "ref": "src-175d7098a0#c0001",
+            "sourceTitle": "Reference skill: karpathy-guidelines SKILL.md",
+            "url": "/tmp/opencode/reference-study-skills/andrej-karpathy-skills-main/skills/karpathy-guidelines/SKILL.md",
+            "score": 0.4,
+            "snippet": "--- name: karpathy-guidelines description: Behavioral guidelines to reduce common LLM coding mistakes. Use when writing, reviewing, or refactoring code to avoid overcomplication, make surgical changes, surface assumptions, and define verifiable success criteria. license: MIT ---\n\n# Karpathy Guidelines\n\nBehavioral guidelines to reduce common LLM coding mistakes, derived from [Andrej Karpathy's observations](https://x.\n...<truncated 1284 chars>"
+          },
+          {
+            "ref": "src-175d7098a0#c0002",
+            "sourceTitle": "Reference skill: karpathy-guidelines SKILL.md",
+            "url": "/tmp/opencode/reference-study-skills/andrej-karpathy-skills-main/skills/karpathy-guidelines/SKILL.md",
+            "score": 0,
+            "snippet": "When your changes create orphans: - Remove imports/variables/functions that YOUR changes made unused. - Don't remove pre-existing dead code unless asked.\n\nThe test: Every changed line should trace directly to the user's request.\n\n## 4. Goal-Driven Execution\n\n**Define success criteria. Loop until verified.**\n\nTransform tasks into verifiable goals: - \"Add validation\" → \"Write tests for invalid inputs, then make them pa\n...<truncated 379 chars>"
+          }
+        ],
+        "note": "Lexical support found. Human/model reviewer should still verify meaning."
+      },
+      "createdAt": "2026-05-23T08:10:13.822Z",
+      "updatedAt": "2026-05-23T08:10:42.032Z"
+    },
+    {
+      "id": "claim-032698372d",
+      "text": "The Matt Pocock pack keeps installable skills in .claude-plugin/plugin.json and repository rules say engineering/productivity/misc skills must appear there, while personal, in-progress, and deprecated skills must not.",
+      "kind": "fact",
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "sourceId": "src-3608999c9f",
+          "chunkId": "c0001",
+          "ref": "src-3608999c9f#c0001"
+        }
+      ],
+      "status": "unsupported",
+      "validation": {
+        "validatedAt": "2026-05-23T08:10:42.032Z",
+        "minScore": 0.18,
+        "bestScore": 0.15,
+        "evidence": [
+          {
+            "ref": "src-3608999c9f#c0001",
+            "sourceTitle": "Reference skill pack plugin manifest",
+            "url": "/tmp/opencode/reference-study-skills/skills-main/.claude-plugin/plugin.json",
+            "score": 0.15,
+            "snippet": "{ \"name\": \"mattpocock-skills\", \"skills\": [ \"./skills/engineering/diagnose\", \"./skills/engineering/grill-with-docs\", \"./skills/engineering/triage\", \"./skills/engineering/improve-codebase-architecture\", \"./skills/engineering/setup-matt-pocock-skills\", \"./skills/engineering/tdd\", \"./skills/engineering/to-issues\", \"./skills/engineering/to-prd\", \"./skills/engineering/zoom-out\", \"./skills/engineering/prototype\", \"./skills/\n...<truncated 131 chars>"
+          }
+        ],
+        "note": "No adequate lexical support found."
+      },
+      "createdAt": "2026-05-23T08:10:32.689Z",
+      "updatedAt": "2026-05-23T08:10:42.032Z"
+    },
+    {
+      "id": "claim-072a01d20a",
+      "text": "Matt Pocock pack promotion is controlled by both manifest and repo policy: .claude-plugin/plugin.json lists promoted skill directories, and CLAUDE.md says engineering/productivity/misc skills must be listed while personal/in-progress/deprecated must not.",
+      "kind": "fact",
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "sourceId": "src-3608999c9f",
+          "chunkId": "c0001",
+          "ref": "src-3608999c9f#c0001"
+        },
+        {
+          "sourceId": "src-11fd7ed4ff",
+          "chunkId": "c0001",
+          "ref": "src-11fd7ed4ff#c0001"
+        }
+      ],
+      "status": "supported",
+      "validation": {
+        "validatedAt": "2026-05-23T08:10:42.033Z",
+        "minScore": 0.18,
+        "bestScore": 0.519,
+        "evidence": [
+          {
+            "ref": "src-11fd7ed4ff#c0001",
+            "sourceTitle": "Reference pack repository rules CLAUDE.md",
+            "url": "/tmp/opencode/reference-study-skills/skills-main/CLAUDE.md",
+            "score": 0.5185185185185185,
+            "snippet": "Skills are organized into bucket folders under `skills/`:\n\n- `engineering/` — daily code work - `productivity/` — daily non-code workflow tools - `misc/` — kept around but rarely used - `personal/` — tied to my own setup, not promoted - `in-progress/` — drafts not yet ready to ship - `deprecated/` — no longer used\n\nEvery skill in `engineering/`, `productivity/`, or `misc/` must have a reference in the top-level `READ\n...<truncated 377 chars>"
+          },
+          {
+            "ref": "src-3608999c9f#c0001",
+            "sourceTitle": "Reference skill pack plugin manifest",
+            "url": "/tmp/opencode/reference-study-skills/skills-main/.claude-plugin/plugin.json",
+            "score": 0.1111111111111111,
+            "snippet": "{ \"name\": \"mattpocock-skills\", \"skills\": [ \"./skills/engineering/diagnose\", \"./skills/engineering/grill-with-docs\", \"./skills/engineering/triage\", \"./skills/engineering/improve-codebase-architecture\", \"./skills/engineering/setup-matt-pocock-skills\", \"./skills/engineering/tdd\", \"./skills/engineering/to-issues\", \"./skills/engineering/to-prd\", \"./skills/engineering/zoom-out\", \"./skills/engineering/prototype\", \"./skills/\n...<truncated 131 chars>"
+          }
+        ],
+        "note": "Lexical support found. Human/model reviewer should still verify meaning."
+      },
+      "createdAt": "2026-05-23T08:10:42.009Z",
+      "updatedAt": "2026-05-23T08:10:42.033Z"
+    }
+  ]
+}

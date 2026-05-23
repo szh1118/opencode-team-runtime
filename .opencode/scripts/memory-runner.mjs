@@ -60,7 +60,13 @@ function defaultConfig() {
     protectedPaths: [".opencode/scripts/", ".opencode/plugins/", ".opencode/mcp/"],
     allowedWritePaths: [".opencode/team/memory/", ".opencode/agents/", ".opencode/skills/"],
     minimumEvidenceForSuggestion: 2,
-    routeQuality: { successWeight: 1, failureWeight: -1, premiumCostPenalty: -0.25, repeatFailurePenalty: -0.5 }
+    routeQuality: { successWeight: 1, failureWeight: -1, premiumCostPenalty: -0.25, repeatFailurePenalty: -0.5 },
+    suggestionLifecycle: {
+      activeThresholdDays: 14,
+      staleThresholdDays: 30,
+      archiveThresholdDays: 90,
+      maxActiveSuggestions: 30,
+    },
   };
 }
 function defaultScorecard() {
@@ -184,11 +190,31 @@ export function analyze(project, opts = {}) {
 function topTags(stats, n = 5) {
   return Object.entries(stats?.tags || {}).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k}:${v}`).join(", ");
 }
+function classifyDurability(kind, text, count) {
+  const t = (text || "").toLowerCase()
+  if (/(missing|not found|not installed|command not found|no such file|ENOENT|EACCES)/i.test(t) && count < 2) return "transient_setup"
+  if (/(does not work|broken|not available|unavailable|can't|cannot|unable to)/i.test(t) && count < 3) return "transient_tool"
+  if (/(pattern|convention|style|prefer|always|never|should|must|rule)/i.test(t) && count >= 2) return "stable_convention"
+  if (/(user|prefers|wants|asked|requested|corrected)/i.test(t)) return "stable_user_preference"
+  return "unclassified"
+}
+
 function addSuggestion(list, sug) {
   if (!sug.id) sug.id = id("sug");
   sug.time = sug.time || now();
   sug.status = sug.status || "proposed";
+  if (!sug.durability) sug.durability = classifyDurability(sug.type, sug.rationale || sug.title || "", sug.evidenceCount || 0);
   list.push(sug);
+}
+
+function isPatternTransient(tag, stats) {
+  const examples = stats.examples || [];
+  const allText = examples.map(e => (e.text || "").toLowerCase()).join(" ");
+  const count = stats.total || 0;
+  if (tag === "browser_failure" && /does not work|not available|broken/.test(allText)) return true;
+  if (/install|dependency/.test(tag) && count < 2) return true;
+  if (/this tool does not work|permanently broken|cannot work|never works/.test(allText) && count < 4) return true;
+  return false;
 }
 
 export function generateSuggestions(project, opts = {}) {
@@ -216,6 +242,7 @@ export function generateSuggestions(project, opts = {}) {
 
   for (const [tag, stats] of Object.entries(scorecard.patterns || {})) {
     if ((stats.failure || 0) >= minEvidence) {
+      if (isPatternTransient(tag, stats)) continue;
       if (tag === "premature_done") addSuggestion(suggestions, {
         type: "prompt",
         title: "Strengthen done-gate wording for premature completion",
@@ -289,6 +316,122 @@ export function writePromptNotes(project, suggestions = null) {
   }
   fs.writeFileSync(memPath(project, "prompt-notes.md"), lines.join("\n") + "\n");
   return memPath(project, "prompt-notes.md");
+}
+
+function loadMemory(project) {
+  const suggestions = readJson(memPath(project, "suggestions.json"), defaultSuggestions());
+  const config = readJson(memPath(project, "config.json"), defaultConfig());
+  return { suggestions: suggestions.suggestions || [], config };
+}
+function saveMemory(project, mem) {
+  const data = { version: VERSION, generatedAt: now(), mode: mem.config?.mode || "advisory-only", suggestions: mem.suggestions || [] };
+  writeJson(memPath(project, "suggestions.json"), data);
+}
+
+function curatorStatus(project, opts = {}) {
+  const mem = loadMemory(project)
+  const suggestions = mem.suggestions || []
+  const config = mem.config || {}
+  const now_ = now()
+  const lifecycle = config.suggestionLifecycle || { activeThresholdDays: 14, staleThresholdDays: 30, archiveThresholdDays: 90, maxActiveSuggestions: 30 }
+  function ageDays(created) { return (Date.now() - new Date(created).getTime()) / (1000 * 60 * 60 * 24) }
+  const active = suggestions.filter(s => !s.curatorStatus || s.curatorStatus === "active")
+  const stale = suggestions.filter(s => s.curatorStatus === "stale")
+  const archived = suggestions.filter(s => s.curatorStatus === "archived")
+  const merged = suggestions.filter(s => s.curatorStatus === "merged")
+  const superseded = suggestions.filter(s => s.curatorStatus === "superseded")
+  const needsAttention = active.filter(s => ageDays(s.createdAt) > lifecycle.staleThresholdDays)
+  return { ok: true, counts: { active: active.length, stale: stale.length, archived: archived.length, merged: merged.length, superseded: superseded.length, needsAttention: needsAttention.length }, needsAttention: needsAttention.slice(0, 10), config: lifecycle }
+}
+
+function curatorTransition(project, opts = {}) {
+  const mem = loadMemory(project)
+  const suggestions = mem.suggestions || []
+  const config = mem.config || {}
+  const lifecycle = config.suggestionLifecycle || {}
+  const now_ = now()
+  function ageDays(created) { return (Date.now() - new Date(created).getTime()) / (1000 * 60 * 60 * 24) }
+  let changed = 0
+  for (const s of suggestions) {
+    if (!s.curatorStatus || s.curatorStatus === "active") {
+      const days = ageDays(s.createdAt)
+      if (days > (lifecycle.archiveThresholdDays || 90)) { s.curatorStatus = "archived"; s.curatedAt = now_; changed++ }
+      else if (days > (lifecycle.staleThresholdDays || 30)) { s.curatorStatus = "stale"; s.curatedAt = now_; changed++ }
+    }
+  }
+  if (changed) saveMemory(project, mem)
+  return { ok: true, changed, total: suggestions.length }
+}
+
+function curatorMerge(project, opts = {}) {
+  const mem = loadMemory(project)
+  const suggestions = mem.suggestions || []
+  if (!opts.absorbedInto || !Array.isArray(opts.sourceIds) || !opts.sourceIds.length) throw new Error("absorbedInto and sourceIds[] required")
+  let changed = 0
+  for (const s of suggestions) {
+    if (opts.sourceIds.includes(s.id) && (!s.curatorStatus || s.curatorStatus === "active" || s.curatorStatus === "stale")) {
+      s.curatorStatus = "merged"
+      s.absorbedInto = opts.absorbedInto
+      s.curatedAt = now()
+      changed++
+    }
+  }
+  if (changed) saveMemory(project, mem)
+  return { ok: true, merged: changed }
+}
+
+function curatorPin(project, opts = {}) {
+  const mem = loadMemory(project)
+  const suggestions = mem.suggestions || []
+  if (!opts.id) throw new Error("id required")
+  const s = suggestions.find(x => x.id === opts.id)
+  if (!s) throw new Error(`Suggestion not found: ${opts.id}`)
+  s.curatorStatus = "pinned"
+  s.curatedAt = now()
+  saveMemory(project, mem)
+  return { ok: true, pinned: s.id }
+}
+
+function curatorReport(project, opts = {}) {
+  const status = curatorStatus(project)
+  const mem = loadMemory(project)
+  const suggestions = mem.suggestions || []
+  const byKind = {}
+  const byAgent = {}
+  for (const s of suggestions) {
+    const k = s.kind || "unknown"
+    byKind[k] = (byKind[k] || 0) + 1
+    const a = s.agent || "unknown"
+    byAgent[a] = (byAgent[a] || 0) + 1
+  }
+  const report = [
+    `# Memory Curator Report`,
+    `Generated: ${now()}`,
+    ``,
+    `## Status`,
+    `- Active: ${status.counts.active}`,
+    `- Stale: ${status.counts.stale}`,
+    `- Archived: ${status.counts.archived}`,
+    `- Merged: ${status.counts.merged}`,
+    `- Superseded: ${status.counts.superseded}`,
+    `- Needs attention (>${status.config.staleThresholdDays || 30}d): ${status.counts.needsAttention}`,
+    ``,
+    `## By Kind`,
+    ...Object.entries(byKind).sort((a,b) => b[1]-a[1]).map(([k,v]) => `- ${k}: ${v}`),
+    ``,
+    `## By Agent`,
+    ...Object.entries(byAgent).sort((a,b) => b[1]-a[1]).map(([k,v]) => `- ${k}: ${v}`),
+    ``,
+    `## Needs Attention`,
+    ...(status.needsAttention || []).slice(0, 15).map(s => `- [${s.id}] ${s.kind || ""} — ${(s.text || "").slice(0, 140)}`),
+    ``,
+  ].join("\n")
+  if (opts.out) {
+    const outPath = path.resolve(project, opts.out)
+    fs.writeFileSync(outPath, report)
+    return { ok: true, path: path.relative(project, outPath), report }
+  }
+  return { ok: true, report }
 }
 
 function parseEvidenceSections(project) {
@@ -469,6 +612,11 @@ Usage:
   opencode-memory pack "query" [--max-chars N]
   opencode-memory approve SUGGESTION_ID [--note TEXT]
   opencode-memory reject SUGGESTION_ID [--note TEXT]
+  opencode-memory curator-status [--json]
+  opencode-memory curator-transition
+  opencode-memory curator-merge --text absorbedIntoID SRC_ID1 SRC_ID2 ...
+  opencode-memory curator-pin SUGGESTION_ID
+  opencode-memory curator-report [--out FILE.md]
 
 Safety:
   P6 is advisory-only by default. It writes suggestions and prompt notes, not runtime code.
@@ -494,6 +642,11 @@ async function main() {
   if (opts.command === "pack") return print(exportPack(project, opts.query, opts), opts.json);
   if (opts.command === "approve") return print(approve(project, opts.id, "approved", opts.note), opts.json);
   if (opts.command === "reject") return print(approve(project, opts.id, "rejected", opts.note), opts.json);
+  if (opts.command === "curator-status") return print(curatorStatus(project, opts), opts.json);
+  if (opts.command === "curator-transition") return print(curatorTransition(project, opts), opts.json);
+  if (opts.command === "curator-merge") return print(curatorMerge(project, { ...opts, absorbedInto: opts.text, sourceIds: opts._ }), opts.json);
+  if (opts.command === "curator-pin") return print(curatorPin(project, { id: opts.text || opts._[0] }), opts.json);
+  if (opts.command === "curator-report") return print(curatorReport(project, { ...opts, out: opts.out }), opts.json);
   throw new Error(`Unknown command: ${opts.command}`);
 }
 

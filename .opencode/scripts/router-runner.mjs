@@ -47,10 +47,10 @@ function builtinRegistry() {
   return {
     version: VERSION,
     models: {
-      "minimax-m2.7": { label: "MiniMax M2.7", opencodeModel: "minimax/minimax-m2.7", tier: "cheap", capabilities: ["text", "coding", "bulk-edit"], contextBudgetTokens: 120000, softRotationRatio: 0.55, hardRotationRatio: 0.70 },
-      "deepseek-v4-pro": { label: "DeepSeek V4 Pro", opencodeModel: "deepseek/deepseek-v4-pro", tier: "strong", capabilities: ["text", "coding", "planning", "review"], contextBudgetTokens: 600000, softRotationRatio: 0.60, hardRotationRatio: 0.72 },
-      "qwen3.7-max": { label: "Qwen3.7 Max", opencodeModel: "qwen/qwen3.7-max", tier: "strong", capabilities: ["text", "long-context", "handoff", "planning"], contextBudgetTokens: 700000, softRotationRatio: 0.70, hardRotationRatio: 0.80 },
-      "gpt-5.5": { label: "GPT-5.5", opencodeModel: "openai/gpt-5.5", tier: "premium", capabilities: ["text", "review", "audit", "hard-debug", "vision"], contextBudgetTokens: 200000, softRotationRatio: 0.75, hardRotationRatio: 0.83 },
+      worker: { label: "A-zone worker (MiniMax M2.7 204K)", opencodeModel: "minimax/minimax-m2.7", tier: "budget", capabilities: ["text", "coding", "bulk-edit"], contextBudgetTokens: 204800, softRotationRatio: 0.80, hardRotationRatio: 0.85 },
+      supervisor: { label: "Supervisor/reviewer (DeepSeek V4 Pro 1M→768K usable)", opencodeModel: "deepseek/deepseek-v4-pro", tier: "strong", capabilities: ["text", "coding", "planning", "review"], contextBudgetTokens: 768000, softRotationRatio: 0.78, hardRotationRatio: 0.95 },
+      handoff: { label: "Handoff/research (Qwen3.7 Max 1M→768K usable)", opencodeModel: "qwen/qwen3.7-max", tier: "strong", capabilities: ["text", "long-context", "handoff", "planning"], contextBudgetTokens: 768000, softRotationRatio: 0.78, hardRotationRatio: 0.95 },
+      checkpoint: { label: "Checkpoint auditor (GPT-5.5 400K→200K rotate)", opencodeModel: "openai/gpt-5.5", tier: "premium", capabilities: ["text", "review", "audit", "hard-debug", "vision"], contextBudgetTokens: 200000, softRotationRatio: 0.75, hardRotationRatio: 0.90 },
     },
   };
 }
@@ -70,12 +70,13 @@ function defaultPolicy() {
     version: VERSION,
     budget: { dailySoftLimit: 0, dailyHardLimit: 0, premiumCallsSoftLimit: 8, premiumCallsHardLimit: 20, requireExplicitExecuteForPremium: true },
     roles: {
-      "chief-engineer": { defaultModel: "deepseek-v4-pro", fallbackModels: ["qwen3.7-max", "gpt-5.5"], premiumAllowed: true },
-      "minimax-coder": { defaultModel: "minimax-m2.7", fallbackModels: ["deepseek-v4-pro"], premiumAllowed: false },
-      tester: { defaultModel: "minimax-m2.7", fallbackModels: ["deepseek-v4-pro"], premiumAllowed: false },
-      reviewer: { defaultModel: "deepseek-v4-pro", fallbackModels: ["qwen3.7-max", "gpt-5.5"], premiumAllowed: true },
-      auditor: { defaultModel: "gpt-5.5", fallbackModels: ["qwen3.7-max", "deepseek-v4-pro"], premiumAllowed: true, checkpointOnly: true },
-      "handoff-writer": { defaultModel: "qwen3.7-max", fallbackModels: ["deepseek-v4-pro"], premiumAllowed: false },
+      "chief-engineer": { defaultModel: "supervisor", fallbackModels: ["handoff", "checkpoint"], premiumAllowed: true },
+      "a-zone-coder": { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false },
+      "minimax-coder": { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false },
+      tester: { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false },
+      reviewer: { defaultModel: "supervisor", fallbackModels: ["handoff", "checkpoint"], premiumAllowed: true },
+      auditor: { defaultModel: "checkpoint", fallbackModels: ["handoff", "supervisor"], premiumAllowed: true, checkpointOnly: true },
+      "handoff-writer": { defaultModel: "handoff", fallbackModels: ["supervisor"], premiumAllowed: false },
     },
     escalation: { afterFailures: 2, maxMiniMaxAttempts: 2, premiumEscalationReasons: ["final-audit", "repeated-failure", "claimed-but-missing"] },
     routingRules: [],
@@ -175,7 +176,7 @@ function isPremiumModel(registry, alias) {
 }
 
 function rolePolicy(policy, role) {
-  return policy.roles?.[role] || policy.roles?.["chief-engineer"] || { defaultModel: "deepseek-v4-pro", fallbackModels: [] };
+  return policy.roles?.[role] || policy.roles?.["chief-engineer"] || { defaultModel: "supervisor", fallbackModels: [] };
 }
 
 function matchRule(rule, input) {
@@ -230,11 +231,11 @@ function decide(project, input = {}) {
 
   // Cheap-model failure escalation.
   const esc = policy.escalation || {};
-  if (!forcedModel && role === "minimax-coder" && attempts >= (esc.maxMiniMaxAttempts ?? 2)) {
+    if (!forcedModel && ["a-zone-coder", "minimax-coder"].includes(role) && attempts >= (esc.maxMiniMaxAttempts ?? 2)) {
     routedRole = "chief-engineer";
     const erp = rolePolicy(policy, routedRole);
     alias = erp.defaultModel || alias;
-    reasons.push(`MiniMax attempts ${attempts} exceeded maxMiniMaxAttempts; escalate to ${routedRole}.`);
+      reasons.push(`A-zone worker attempts ${attempts} exceeded maxMiniMaxAttempts; escalate to ${routedRole}.`);
   }
 
   const premiumReasons = esc.premiumEscalationReasons || [];

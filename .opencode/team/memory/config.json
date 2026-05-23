@@ -1,0 +1,28 @@
+{
+  "version": "0.8.0-p6",
+  "mode": "advisory-only",
+  "autoApply": false,
+  "protectedPaths": [
+    ".opencode/scripts/",
+    ".opencode/plugins/",
+    ".opencode/mcp/"
+  ],
+  "allowedWritePaths": [
+    ".opencode/team/memory/",
+    ".opencode/agents/",
+    ".opencode/skills/"
+  ],
+  "minimumEvidenceForSuggestion": 2,
+  "routeQuality": {
+    "successWeight": 1,
+    "failureWeight": -1,
+    "premiumCostPenalty": -0.25,
+    "repeatFailurePenalty": -0.5
+  },
+  "suggestionLifecycle": {
+    "activeThresholdDays": 14,
+    "staleThresholdDays": 30,
+    "archiveThresholdDays": 90,
+    "maxActiveSuggestions": 30
+  }
+}

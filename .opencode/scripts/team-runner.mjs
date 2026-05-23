@@ -177,6 +177,7 @@ function ensureFiles(project) {
         dangerouslySkipPermissions: false,
         models: {
           "chief-engineer": "",
+          "a-zone-coder": "",
           "minimax-coder": "",
           tester: "",
           reviewer: "",
@@ -232,6 +233,12 @@ function appendEvidence(project, type, status, body) {
   saveState(project, state);
 }
 
+function appendStepTrace(project, entry) {
+  const file = teamPath(project, "trace.jsonl")
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.appendFileSync(file, JSON.stringify(entry) + "\n")
+}
+
 function taskId(prefix = "T") {
   return `${prefix}-${crypto.randomBytes(3).toString("hex")}`;
 }
@@ -277,7 +284,7 @@ function bootstrapDag(project, idea) {
         title: "Implement the first atomic task selected by chief-engineer",
         status: "blocked",
         zone: "A",
-        agent: "minimax-coder",
+        agent: "a-zone-coder",
         attempts: 0,
         dependsOn: [ids.plan],
         acceptanceCriteria: ["Smallest viable edit is made", "Changed files are recorded", "Implementation evidence is recorded"],
@@ -693,6 +700,8 @@ function plan(project, idea, opts) {
 
 function runTaskStep(project, opts) {
   ensureFiles(project);
+  const v = validateDag(project)
+  for (const w of v.warnings) console.log(`[DAG WARN] ${w}`)
   const task = pickNextTask(project);
   if (!task) {
     console.log("No runnable tasks. Consider `audit` or create a new plan.");
@@ -700,7 +709,7 @@ function runTaskStep(project, opts) {
   }
 
   let kind = "work";
-  let agent = task.agent || "minimax-coder";
+  let agent = task.agent || "a-zone-coder";
   let nextStatus = "working";
 
   if (task.agent === "chief-engineer" || task.zone === "mother") {
@@ -717,7 +726,7 @@ function runTaskStep(project, opts) {
     nextStatus = "reviewing";
   } else if (task.status === "failed") {
     kind = "work";
-    agent = task.agent === "minimax-coder" && (task.attempts || 0) >= 2 ? "chief-engineer" : (task.agent || "minimax-coder");
+    agent = ["a-zone-coder", "minimax-coder"].includes(task.agent) && (task.attempts || 0) >= 2 ? "chief-engineer" : (task.agent || "a-zone-coder");
     nextStatus = "working";
   }
 
@@ -874,6 +883,58 @@ function handoff(project, opts) {
   return result;
 }
 
+function validateDag(project) {
+  const dag = loadDag(project)
+  const errors = []
+  const warnings = []
+  const taskMap = new Map()
+  for (const t of dag.tasks) taskMap.set(t.id, t)
+  const inDegree = new Map()
+  const adj = new Map()
+  for (const t of dag.tasks) {
+    if (!inDegree.has(t.id)) inDegree.set(t.id, 0)
+    if (!adj.has(t.id)) adj.set(t.id, [])
+    for (const dep of (t.dependsOn || [])) {
+      if (!inDegree.has(dep)) inDegree.set(dep, 0)
+      if (!adj.has(dep)) adj.set(dep, [])
+      inDegree.set(t.id, inDegree.get(t.id) + 1)
+      adj.get(dep).push(t.id)
+    }
+  }
+  const queue = []
+  for (const [id, deg] of inDegree) {
+    if (deg === 0) queue.push(id)
+  }
+  let sorted = 0
+  while (queue.length > 0) {
+    const node = queue.shift()
+    sorted++
+    for (const neighbor of (adj.get(node) || [])) {
+      inDegree.set(neighbor, inDegree.get(neighbor) - 1)
+      if (inDegree.get(neighbor) === 0) queue.push(neighbor)
+    }
+  }
+  if (sorted !== dag.tasks.length) errors.push("Cycle detected in task DAG dependencies")
+  for (const t of dag.tasks) {
+    for (const dep of (t.dependsOn || [])) {
+      if (!taskMap.has(dep)) errors.push(`Task ${t.id} depends on missing task ${dep}`)
+    }
+  }
+  for (const t of dag.tasks) {
+    const isReviewOrAudit = t.zone === "B" || t.agent === "reviewer" || t.agent === "auditor"
+    if (!isReviewOrAudit && (!Array.isArray(t.acceptanceCriteria) || t.acceptanceCriteria.length === 0)) errors.push(`Task ${t.id} has no acceptance criteria`)
+  }
+  for (const t of dag.tasks) {
+    if (t.title && t.title.length > 200) warnings.push(`Task ${t.id} title exceeds 200 chars (${t.title.length})`)
+  }
+  for (const t of dag.tasks) {
+    if (t.status === "blocked" && Array.isArray(t.dependsOn) && t.dependsOn.length > 0) {
+      if (t.dependsOn.every((d) => dependencyDone(dag, d))) warnings.push(`Task ${t.id} is blocked but all dependencies are done`)
+    }
+  }
+  return { ok: errors.length === 0, errors, warnings, taskCount: dag.tasks.length }
+}
+
 function runLoop(project, idea, opts) {
   ensureFiles(project);
   const runtime = loadRuntimeConfig(project);
@@ -899,6 +960,8 @@ function runLoop(project, idea, opts) {
     }
     console.log(`Step ${i + 1}: ${next.id} ${next.status} ${next.agent} — ${next.title}`);
     const result = runTaskStep(project, opts);
+    const dv = validateDag(project)
+    if (dv.errors.length) console.log(`[DAG ERR] ${dv.errors.join("; ")}`)
     if (!result.ok) {
       console.log(`Step ${i + 1}: failed; stopping loop. Inspect .opencode/team/sessions/`);
       break;
@@ -933,21 +996,27 @@ function main() {
         plan(project, opts.idea, opts);
         printStatus(project);
         break;
-      case "step":
-        runTaskStep(project, opts);
+      case "step": {
+        const res = runTaskStep(project, opts);
+        appendStepTrace(project, { kind: "step", ok: res.ok, at: now() })
         printStatus(project);
         break;
+      }
       case "run":
         runLoop(project, opts.idea, opts);
         break;
-      case "review":
-        review(project, opts);
+      case "review": {
+        const res = review(project, opts);
+        appendStepTrace(project, { kind: "review", ok: res.ok, at: now() })
         printStatus(project);
         break;
-      case "audit":
-        audit(project, opts);
+      }
+      case "audit": {
+        const res = audit(project, opts);
+        appendStepTrace(project, { kind: "audit", ok: res.ok, at: now() })
         printStatus(project);
         break;
+      }
       case "browser":
       case "webtest":
         browser(project, opts);
@@ -963,10 +1032,12 @@ function main() {
         break;
       }
       case "handoff":
-      case "rotate":
-        handoff(project, opts);
+      case "rotate": {
+        const res = handoff(project, opts);
+        appendStepTrace(project, { kind: "handoff", ok: res.ok, at: now() })
         printStatus(project);
         break;
+      }
       case "mark": {
         const [id, status, ...note] = opts._;
         if (!id || !status || !STATUS_ORDER.includes(status)) throw new Error(`Usage: mark TASK_ID STATUS. Status: ${STATUS_ORDER.join(", ")}`);

@@ -22,7 +22,7 @@ add('global team runtime plugin', exists(path.join(RUNTIME_ROOT, 'plugins', 'tea
 add('global commands directory', exists(path.join(RUNTIME_ROOT, 'command')), 'global command/');
 const commands = ['team-overnight','team-plan','team-step','team-review','team-audit','team-handoff','team-research','team-browser','team-context','team-memory','team-patch-review'];
 for (const c of commands) add(`global command ${c}`, exists(path.join(RUNTIME_ROOT, 'command', `${c}.md`)), `command/${c}.md`);
-const agents = ['chief-engineer','minimax-coder','tester','reviewer','auditor','handoff-writer','research-scout','browser-tester','browser-perception','browser-actor','visual-reviewer','overnight-supervisor'];
+const agents = ['chief-engineer','a-zone-coder','tester','reviewer','auditor','handoff-writer','research-scout','browser-tester','browser-perception','browser-actor','visual-reviewer','overnight-supervisor'];
 for (const a of agents) add(`global agent ${a}`, exists(path.join(RUNTIME_ROOT, 'agents', `${a}.md`)), `agents/${a}.md`);
 const mcp = ['cloakbrowser-mcp.mjs','browser-bridge-mcp.mjs','research-mcp.mjs','context-mcp.mjs','router-mcp.mjs','memory-mcp.mjs','patch-mcp.mjs','overnight-mcp.mjs'];
 for (const m of mcp) add(`global mcp ${m}`, exists(path.join(RUNTIME_ROOT, 'mcp', m)), `mcp/${m}`);

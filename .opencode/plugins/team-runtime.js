@@ -14,6 +14,8 @@
 import fs from "node:fs"
 import path from "node:path"
 import crypto from "node:crypto"
+import { spawnSync } from "node:child_process"
+import { fileURLToPath } from "node:url"
 import { tool } from "@opencode-ai/plugin"
 
 const SERVICE = "opencode-team-runtime"
@@ -158,11 +160,11 @@ function defaultConfig() {
       maxEventJsonChars: 6000,
     },
     rotationProfiles: {
-      minimax: { soft: 0.55, hard: 0.7, notes: "Short, narrow coding tasks only." },
-      deepseek: { soft: 0.6, hard: 0.72, notes: "Keep large buffer for noisy coding contexts." },
-      qwen: { soft: 0.7, hard: 0.8, notes: "Preferred handoff writer." },
-      gpt55: { softTokens: 180000, hardTokens: 200000, notes: "Expensive audit/checkpoint only." },
-      default: { soft: 0.65, hard: 0.8 },
+      worker: { budgetTokens: 204800, soft: 0.80, hard: 0.85, notes: "MiniMax M2.7 204K ctx, rotate at 80-85%." },
+      supervisor: { budgetTokens: 768000, soft: 0.78, hard: 0.95, notes: "DeepSeek V4 Pro 1M ctx, 768K usable for agent coding, buffer 400K." },
+      handoff: { budgetTokens: 768000, soft: 0.78, hard: 0.95, notes: "Qwen3.7 Max 1M ctx, same practical bounds as supervisor." },
+      checkpoint: { budgetTokens: 200000, soft: 0.75, hard: 0.90, notes: "GPT-5.5 400K ctx, 240K practical, rotate around 200K." },
+      default: { soft: 0.75, hard: 0.85 },
     },
   }
 }
@@ -556,7 +558,7 @@ export const TeamRuntimePlugin = async ({ client, directory, worktree }) => {
           id: tool.schema.string().optional().describe("Existing task id to update. Omit to create."),
           title: tool.schema.string().describe("Short atomic task title."),
           status: tool.schema.enum(["open", "working", "blocked", "claimed_done", "reviewing", "failed", "done", "reviewed", "verified"]).optional(),
-          owner: tool.schema.string().optional().describe("Agent or model owner, e.g. minimax-coder, reviewer."),
+          owner: tool.schema.string().optional().describe("Agent or model owner, e.g. a-zone-coder, reviewer."),
           area: tool.schema.enum(["A", "B", "handoff", "research", "runtime"]).optional(),
           priority: tool.schema.enum(["low", "normal", "high", "urgent"]).optional(),
           acceptance: tool.schema.array(tool.schema.string()).optional().describe("Acceptance criteria."),
@@ -657,6 +659,69 @@ export const TeamRuntimePlugin = async ({ client, directory, worktree }) => {
           }
           saveState(paths, state)
           return JSON.stringify({ ok: true, rotation: state.rotation, phase: state.phase }, null, 2)
+        },
+      }),
+
+      team_agent: tool({
+        description: "Register, list, heartbeat, metric, or message logical team agents. Agents are coördination abstractions, not OS processes.",
+        args: {
+          action: tool.schema.enum(["register", "list", "heartbeat", "metric", "send", "poll", "status"]).describe("Action to perform."),
+          id: tool.schema.string().optional().describe("Agent ID."),
+          role: tool.schema.string().optional().describe("Agent role."),
+          capabilities: tool.schema.string().optional().describe("Comma-separated capabilities."),
+          mode: tool.schema.string().optional().describe("Agent mode: desktop-subagent, cli-session, or manual."),
+          status: tool.schema.string().optional().describe("Metric status: passed or failed."),
+          to: tool.schema.string().optional().describe("Message recipient agent ID."),
+          from: tool.schema.string().optional().describe("Message sender agent ID. Defaults to system."),
+          type: tool.schema.string().optional().describe("Message type."),
+          payload: tool.schema.string().optional().describe("Message payload text."),
+          agent_status: tool.schema.string().optional().describe("Agent status value to set."),
+          durationMs: tool.schema.number().optional().describe("Task duration in milliseconds."),
+          limit: tool.schema.number().optional().describe("Maximum results to return (for poll)."),
+        },
+        async execute(args) {
+          const runner = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "scripts", "agent-registry-runner.mjs")
+          const cmdArgs = [runner, args.action]
+          if (args.id) cmdArgs.push("--id", args.id)
+          if (args.role) cmdArgs.push("--role", args.role)
+          if (args.capabilities) cmdArgs.push("--capabilities", args.capabilities)
+          if (args.mode) cmdArgs.push("--mode", args.mode)
+          if (args.status) cmdArgs.push("--status", args.status)
+          if (args.to) cmdArgs.push("--to", args.to)
+          if (args.from) cmdArgs.push("--from", args.from)
+          if (args.type) cmdArgs.push("--type", args.type)
+          if (args.payload) cmdArgs.push("--payload", args.payload)
+          if (args.agent_status) cmdArgs.push("--agent-status", args.agent_status)
+          if (args.durationMs) cmdArgs.push("--duration-ms", String(args.durationMs))
+          if (args.limit) cmdArgs.push("--limit", String(args.limit))
+          cmdArgs.push("--project", root)
+          cmdArgs.push("--json")
+
+          const result = spawnSync("node", cmdArgs, { encoding: "utf8", timeout: 15000 })
+          if (result.error) throw new Error(`Agent runner failed: ${result.error.message}`)
+          if (result.stderr) throw new Error(`Agent runner stderr: ${result.stderr}`)
+          return result.stdout
+        },
+      }),
+
+      team_mailbox: tool({
+        description: "Read recent team mailbox messages for an agent. Use to coördinate between mother session and subagents.",
+        args: {
+          to: tool.schema.string().optional().describe("Filter messages addressed to this agent ID."),
+          limit: tool.schema.number().optional().describe("Maximum messages to return (default 10)."),
+        },
+        async execute(args) {
+          const runner = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "scripts", "agent-registry-runner.mjs")
+          const cmdArgs = [runner, "poll"]
+          if (args.to) cmdArgs.push("--to", args.to)
+          if (args.limit) cmdArgs.push("--limit", String(args.limit))
+          cmdArgs.push("--project", root)
+          cmdArgs.push("--json")
+
+          const result = spawnSync("node", cmdArgs, { encoding: "utf8", timeout: 15000 })
+          if (result.error) throw new Error(`Mailbox poll failed: ${result.error.message}`)
+          if (result.stderr) throw new Error(`Mailbox poll stderr: ${result.stderr}`)
+          return result.stdout
         },
       }),
     },

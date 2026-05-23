@@ -280,6 +280,22 @@ function recordWarning(project, warning) {
   log(project, { event: "warning", warning });
 }
 
+function traceFile(project, runId) { return path.join(runDir(project, runId), "trace.json") }
+
+function loadTrace(project, runId) {
+  return readJson(traceFile(project, runId), { runId, steps: [] })
+}
+
+function recordStepTrace(project, trace) {
+  const s = st(project)
+  const rid = s.activeRunId || "adhoc"
+  const file = traceFile(project, rid)
+  const existing = loadTrace(project, rid)
+  existing.steps.push(trace)
+  existing.updatedAt = now()
+  writeJson(file, existing)
+}
+
 function safeToProceed(project, idea, opts) {
   const c = cfg(project);
   if (opts.dangerouslySkipPermissions && !c.safety?.allowDangerouslySkipPermissions) {
@@ -312,27 +328,49 @@ function preflight(project, opts) {
 }
 
 function maybeResearch(project, idea, opts) {
+  const startedAt = now()
   const c = cfg(project);
-  if (opts.skipResearch || c.phases?.researchOnStart === false) return { skipped: true, reason: "disabled" };
-  if (!ideaHasAny(idea, c.phases?.researchHeuristics || [])) return { skipped: true, reason: "heuristic did not match" };
+  if (opts.skipResearch || c.phases?.researchOnStart === false) {
+    recordStepTrace(project, { phase: "RESEARCH", startedAt, endedAt: null, durationMs: null, skipped: true, reason: "disabled" })
+    return { skipped: true, reason: "disabled" }
+  }
+  if (!ideaHasAny(idea, c.phases?.researchHeuristics || [])) {
+    recordStepTrace(project, { phase: "RESEARCH", startedAt, endedAt: null, durationMs: null, skipped: true, reason: "heuristic did not match" })
+    return { skipped: true, reason: "heuristic did not match" }
+  }
   updatePhase(project, "RESEARCH");
   runContext(project, "ingest", ["--all"]);
   const res = runTeam(project, "research", [idea || "Research the current project goal and collect evidence-backed claims."], { execute: opts.execute });
   runResearch(project, "validate", []);
   runResearch(project, "report", ["--topic", "overnight-start-research"]);
+  recordStepTrace(project, { phase: "RESEARCH", startedAt, endedAt: null, durationMs: null, skipped: false, reason: "completed" })
   return res;
 }
 
 function maybeBrowser(project, idea, opts, cycle) {
+  const startedAt = now()
   const c = cfg(project);
-  if (opts.skipBrowser || c.phases?.browserEvidence === false) return { skipped: true, reason: "disabled" };
-  if (!ideaHasAny(idea, c.phases?.browserHeuristics || [])) return { skipped: true, reason: "heuristic did not match" };
-  if (cycle > 1 && cycle % 3 !== 0) return { skipped: true, reason: "not browser cycle" };
+  if (opts.skipBrowser || c.phases?.browserEvidence === false) {
+    recordStepTrace(project, { phase: "BROWSER_EVIDENCE", startedAt, endedAt: null, durationMs: null, skipped: true, reason: "disabled" })
+    return { skipped: true, reason: "disabled" }
+  }
+  if (!ideaHasAny(idea, c.phases?.browserHeuristics || [])) {
+    recordStepTrace(project, { phase: "BROWSER_EVIDENCE", startedAt, endedAt: null, durationMs: null, skipped: true, reason: "heuristic did not match" })
+    return { skipped: true, reason: "heuristic did not match" }
+  }
+  if (cycle > 1 && cycle % 3 !== 0) {
+    recordStepTrace(project, { phase: "BROWSER_EVIDENCE", startedAt, endedAt: null, durationMs: null, skipped: true, reason: "not browser cycle" })
+    return { skipped: true, reason: "not browser cycle" }
+  }
   updatePhase(project, "BROWSER_EVIDENCE", { cycle });
-  return runTeam(project, "browser", [idea || "Collect browser evidence for current web/UI behavior. Use headed/manual mode if user action is required."], { execute: opts.execute });
+  const res = runTeam(project, "browser", [idea || "Collect browser evidence for current web/UI behavior. Use headed/manual mode if user action is required."], { execute: opts.execute });
+  recordStepTrace(project, { phase: "BROWSER_EVIDENCE", startedAt, endedAt: null, durationMs: null, skipped: false, reason: "completed" })
+  return res;
 }
 
 function contextPack(project, label = "current overnight state") {
+  const startedAt = now()
+  recordStepTrace(project, { phase: "CONTEXT_PACK", startedAt, endedAt: null, durationMs: null, label })
   updatePhase(project, "CONTEXT_PACK", { label });
   runContext(project, "ingest", ["--all"]);
   return runContext(project, "pack", [label, "--max-chars", "20000"]);
@@ -357,9 +395,11 @@ function handoffIfDue(project, opts, cycle) {
 }
 
 function runCycle(project, idea, opts, cycle) {
+  const startedAt = now()
   updatePhase(project, "CYCLE", { cycle });
   contextPack(project, `cycle ${cycle} current task context`);
   const work = runTeam(project, "step", [], { execute: opts.execute, dangerouslySkipPermissions: opts.dangerouslySkipPermissions });
+  recordStepTrace(project, { phase: "CYCLE", cycle, startedAt, endedAt: null, durationMs: null, teamOk: work.ok })
   maybeBrowser(project, idea, opts, cycle);
   reviewIfDue(project, opts, cycle);
   handoffIfDue(project, opts, cycle);
@@ -377,7 +417,9 @@ function finalPass(project, opts) {
     runMemory(project, "learn", ["--from", "all"]);
     runMemory(project, "suggestions", []);
   }
-  return { ok: review.ok && audit.ok && handoff.ok, review, audit, handoff };
+  const ok = Boolean(review.ok && audit.ok && handoff.ok);
+  evidence(project, "final-gate", ok ? "passed" : "blocked", `Review: ${review.ok}\nAudit: ${audit.ok}\nHandoff: ${handoff.ok}\nA run may only be marked FINISHED when this gate passes.`);
+  return { ok, review, audit, handoff };
 }
 
 function stopRun(project, reason = "manual stop") {
@@ -429,11 +471,26 @@ function runOvernight(project, idea, opts, resume = false) {
     const noRunnable = hasTasks(before) && runnableTasks(before).length === 0;
     if (noRunnable && c.mode?.stopWhenAllTasksTerminal !== false) {
       recordDecision(project, { kind: "no-runnable-tasks", cycle: i, terminal: terminalTasks(before), total: before.tasks.length });
-      if (c.phases?.auditWhenNoRunnableTasks !== false) finalPass(project, opts);
+      if (c.phases?.auditWhenNoRunnableTasks !== false) {
+        const final = finalPass(project, opts);
+        if (!final.ok) {
+          updatePhase(project, "FINAL_GATE_BLOCKED", { cycle: i });
+          break;
+        }
+      }
       break;
     }
 
     const res = runCycle(project, effectiveIdea, opts, i);
+    s = st(project)
+    const trace = loadTrace(project, s.activeRunId || "adhoc")
+    const cycEntry = trace.steps.findLast(e => e.phase === "CYCLE" && e.cycle === i)
+    if (cycEntry) {
+      cycEntry.endedAt = now()
+      cycEntry.durationMs = new Date(cycEntry.endedAt) - new Date(cycEntry.startedAt)
+      writeJson(traceFile(project, s.activeRunId || "adhoc"), trace)
+    }
+    recordStepTrace(project, { phase: "CYCLE_COMPLETE", cycle: i, startedAt: now(), endedAt: null, durationMs: null })
     const after = readDag(project);
     const failed = !res.ok || failedTasks(after).length > failedTasks(before).length;
     s = st(project);
@@ -452,14 +509,14 @@ function runOvernight(project, idea, opts, resume = false) {
     }
   }
 
-  finalPass(project, opts);
+  const final = finalPass(project, opts);
   s = st(project);
-  s.phase = "FINISHED";
+  s.phase = final.ok ? "FINISHED" : "FINAL_GATE_BLOCKED";
   s.lastFinishedAt = now();
   saveState(project, s);
   log(project, { event: "run_finish", runId: s.activeRunId, cycles: s.cycles });
-  evidence(project, "run-finish", opts.execute ? "completed" : "dry-run", `Run ${s.activeRunId} finished after ${s.cycles} recorded cycles.`);
-  return { ok: true, runId: s.activeRunId };
+  evidence(project, "run-finish", final.ok ? (opts.execute ? "completed" : "dry-run") : "blocked", `Run ${s.activeRunId} ${final.ok ? "finished" : "stopped before completion because final gate failed"} after ${s.cycles} recorded cycles.`);
+  return { ok: final.ok, runId: s.activeRunId, blocked: !final.ok };
 }
 
 function printStatus(project, json = false) {

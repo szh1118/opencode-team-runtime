@@ -18,8 +18,11 @@ const RUNNER = path.resolve(__dirname, "..", "scripts", "research-runner.mjs");
 function runResearch(command, args = {}) {
   if (!fs.existsSync(RUNNER)) throw new Error(`research runner not found: ${RUNNER}`);
   const argv = [RUNNER, command, "--project", PROJECT_ROOT];
-  if (args.url) argv.push(String(args.url));
-  if (args.query) argv.push(String(args.query));
+  const topicFirst = ["plan", "deep", "deep-report", "discover"].includes(command);
+  if (topicFirst && args.topic) argv.push(String(args.topic));
+  else if (topicFirst && args.query) argv.push(String(args.query));
+  if (!topicFirst && args.url) argv.push(String(args.url));
+  if (args.query && !topicFirst) argv.push(String(args.query));
   if (args.question) argv.push(String(args.question));
   if (args.claim) argv.push(String(args.claim));
   if (args.title) argv.push("--title", String(args.title));
@@ -34,6 +37,9 @@ function runResearch(command, args = {}) {
   if (args.fetch === false) argv.push("--no-fetch");
   if (args.browser) argv.push("--browser", String(args.browser));
   if (args.execute) argv.push("--execute");
+  if (args.depth != null) argv.push("--depth", String(args.depth));
+  if (args.breadth != null) argv.push("--breadth", String(args.breadth));
+  if (args.sourceIds) argv.push("--source-ids", String(args.sourceIds));
 
   const res = spawnSync(process.execPath, argv, { cwd: PROJECT_ROOT, env: process.env, encoding: "utf8", maxBuffer: 100 * 1024 * 1024 });
   const stdout = (res.stdout || "").trim();
@@ -52,6 +58,11 @@ const TOOLS = [
   { name: "validate", description: "Validate every recorded claim against cited chunks. Returns supported/weak/unsupported status.", inputSchema: { type: "object", properties: { minScore: { type: "number" } } } },
   { name: "report", description: "Generate a markdown report from recorded sources/claims. Report is blocked if claims are unsupported/unvalidated.", inputSchema: { type: "object", properties: { topic: { type: "string" }, out: { type: "string" } } } },
   { name: "search_browser", description: "Open a browser search page through CloakBrowser or Browser Bridge. Use this only as a discovery step; add sources explicitly afterward.", inputSchema: { type: "object", required: ["query"], properties: { query: { type: "string" }, browser: { type: "string", enum: ["none", "cloak", "bridge"] } } } },
+  { name: "plan", description: "Generate a research query plan from a topic. Returns sub-queries by depth for recursive exploration.", inputSchema: { type: "object", required: ["topic"], properties: { topic: { type: "string" }, depth: { type: "number" }, breadth: { type: "number" } } } },
+  { name: "discover", description: "Search and extract candidate URLs for a query via CloakBrowser. Returns discovered URLs to add as sources.", inputSchema: { type: "object", required: ["query"], properties: { query: { type: "string" }, browser: { type: "string", enum: ["cloak", "bridge"] }, fetch: { type: "boolean" } } } },
+  { name: "curate", description: "Rank sources by credibility signals: domain authority, content size, freshness. Use before report synthesis.", inputSchema: { type: "object", properties: { sourceIds: { type: "string" } } } },
+  { name: "deep", description: "Run full recursive deep research: plan -> discover -> add sources -> curate. Dry-run unless execute=true.", inputSchema: { type: "object", required: ["topic"], properties: { topic: { type: "string" }, depth: { type: "number" }, breadth: { type: "number" }, browser: { type: "string", enum: ["cloak", "bridge"] }, fetch: { type: "boolean" }, execute: { type: "boolean" } } } },
+  { name: "deep_report", description: "Generate a credibility-ranked deep research report with source curation.", inputSchema: { type: "object", required: ["topic"], properties: { topic: { type: "string" }, out: { type: "string" } } } },
   { name: "run_agent", description: "Ask the research-scout agent to perform an evidence-first research pass. Dry-run unless execute=true.", inputSchema: { type: "object", required: ["question"], properties: { question: { type: "string" }, execute: { type: "boolean" } } } }
 ];
 
@@ -63,6 +74,11 @@ async function handleTool(name, args = {}) {
   if (name === "validate") return runResearch("validate", args);
   if (name === "report") return runResearch("report", args);
   if (name === "search_browser") return runResearch("search", args);
+  if (name === "plan") return runResearch("plan", args);
+  if (name === "discover") return runResearch("discover", args);
+  if (name === "curate") return runResearch("curate", args);
+  if (name === "deep") return runResearch("deep", args);
+  if (name === "deep_report") return runResearch("deep-report", args);
   if (name === "run_agent") return runResearch("run", args);
   throw new Error(`Unknown tool: ${name}`);
 }

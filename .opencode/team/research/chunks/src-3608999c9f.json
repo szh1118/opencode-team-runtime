@@ -1,0 +1,23 @@
+{
+  "version": "0.6.0-p4",
+  "source": {
+    "id": "src-3608999c9f",
+    "title": "Reference skill pack plugin manifest",
+    "url": "/tmp/opencode/reference-study-skills/skills-main/.claude-plugin/plugin.json",
+    "contentType": "text/plain",
+    "addedAt": "2026-05-23T08:10:00.818Z",
+    "fetched": false,
+    "textChars": 614,
+    "chunkCount": 1,
+    "chunkFile": ".opencode/team/research/chunks/src-3608999c9f.json",
+    "notes": ""
+  },
+  "chunks": [
+    {
+      "id": "c0001",
+      "index": 0,
+      "text": "{ \"name\": \"mattpocock-skills\", \"skills\": [ \"./skills/engineering/diagnose\", \"./skills/engineering/grill-with-docs\", \"./skills/engineering/triage\", \"./skills/engineering/improve-codebase-architecture\", \"./skills/engineering/setup-matt-pocock-skills\", \"./skills/engineering/tdd\", \"./skills/engineering/to-issues\", \"./skills/engineering/to-prd\", \"./skills/engineering/zoom-out\", \"./skills/engineering/prototype\", \"./skills/productivity/caveman\", \"./skills/productivity/grill-me\", \"./skills/productivity/handoff\", \"./skills/productivity/write-a-skill\" ] }",
+      "chars": 551
+    }
+  ]
+}

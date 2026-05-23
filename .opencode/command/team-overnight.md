@@ -1,9 +1,9 @@
 ---
-description: Desktop-first overnight supervisor for opencode-team-runtime
+description: Desktop-first all-in-one overnight supervisor for opencode-team-runtime
 agent: overnight-supervisor
 ---
 
-You are running opencode-team-runtime in **Desktop/in-session mode**.
+You are running opencode-team-runtime in **All in one Desktop mode**.
 
 User request / idea:
 
@@ -16,8 +16,9 @@ Important constraints:
 - Start by calling `overnight_status` and relevant doctor/status tools.
 - If no task DAG exists for this idea, create/refresh one through the available team/overnight tools and write evidence.
 - Work in small cycles: plan → context pack → A-zone work → evidence → B-zone review → handoff.
+- Use B-zone reviewer/auditor subagents to catch premature "done" claims; do not over-constrain the A-zone worker with extra bureaucracy.
 - Browser/login/CAPTCHA/strong anti-bot cases must use headed/manual browser tools so the user can take over.
-- Never claim completion unless evidence, review, and handoff gates pass.
+- Never claim completion unless evidence, review, audit/checkpoint when due, and handoff gates pass.
 - High-risk external side effects require explicit user confirmation.
 
 Begin the cycle now. If a tool is missing or unavailable, report exactly which tool/config entry is missing and write a recovery step.

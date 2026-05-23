@@ -1,0 +1,67 @@
+{
+  "version": "0.6.0-p4",
+  "createdAt": "2026-05-23T08:10:00.750Z",
+  "updatedAt": "2026-05-23T08:10:32.669Z",
+  "sources": [
+    {
+      "id": "src-175d7098a0",
+      "title": "Reference skill: karpathy-guidelines SKILL.md",
+      "url": "/tmp/opencode/reference-study-skills/andrej-karpathy-skills-main/skills/karpathy-guidelines/SKILL.md",
+      "contentType": "text/plain",
+      "addedAt": "2026-05-23T08:10:00.751Z",
+      "fetched": false,
+      "textChars": 2506,
+      "chunkCount": 2,
+      "chunkFile": ".opencode/team/research/chunks/src-175d7098a0.json",
+      "notes": ""
+    },
+    {
+      "id": "src-1c26f289b5",
+      "title": "Reference skill: write-a-skill SKILL.md",
+      "url": "/tmp/opencode/reference-study-skills/skills-main/skills/productivity/write-a-skill/SKILL.md",
+      "contentType": "text/plain",
+      "addedAt": "2026-05-23T08:10:00.774Z",
+      "fetched": false,
+      "textChars": 3026,
+      "chunkCount": 2,
+      "chunkFile": ".opencode/team/research/chunks/src-1c26f289b5.json",
+      "notes": ""
+    },
+    {
+      "id": "src-7a8532ff65",
+      "title": "Reference skill: setup-matt-pocock-skills SKILL.md",
+      "url": "/tmp/opencode/reference-study-skills/skills-main/skills/engineering/setup-matt-pocock-skills/SKILL.md",
+      "contentType": "text/plain",
+      "addedAt": "2026-05-23T08:10:00.796Z",
+      "fetched": false,
+      "textChars": 6793,
+      "chunkCount": 5,
+      "chunkFile": ".opencode/team/research/chunks/src-7a8532ff65.json",
+      "notes": ""
+    },
+    {
+      "id": "src-3608999c9f",
+      "title": "Reference skill pack plugin manifest",
+      "url": "/tmp/opencode/reference-study-skills/skills-main/.claude-plugin/plugin.json",
+      "contentType": "text/plain",
+      "addedAt": "2026-05-23T08:10:00.818Z",
+      "fetched": false,
+      "textChars": 614,
+      "chunkCount": 1,
+      "chunkFile": ".opencode/team/research/chunks/src-3608999c9f.json",
+      "notes": ""
+    },
+    {
+      "id": "src-11fd7ed4ff",
+      "title": "Reference pack repository rules CLAUDE.md",
+      "url": "/tmp/opencode/reference-study-skills/skills-main/CLAUDE.md",
+      "contentType": "text/plain",
+      "addedAt": "2026-05-23T08:10:32.669Z",
+      "fetched": false,
+      "textChars": 798,
+      "chunkCount": 1,
+      "chunkFile": ".opencode/team/research/chunks/src-11fd7ed4ff.json",
+      "notes": ""
+    }
+  ]
+}

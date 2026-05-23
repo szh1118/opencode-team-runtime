@@ -1,0 +1,29 @@
+{
+  "version": "0.6.0-p4",
+  "source": {
+    "id": "src-1c26f289b5",
+    "title": "Reference skill: write-a-skill SKILL.md",
+    "url": "/tmp/opencode/reference-study-skills/skills-main/skills/productivity/write-a-skill/SKILL.md",
+    "contentType": "text/plain",
+    "addedAt": "2026-05-23T08:10:00.774Z",
+    "fetched": false,
+    "textChars": 3026,
+    "chunkCount": 2,
+    "chunkFile": ".opencode/team/research/chunks/src-1c26f289b5.json",
+    "notes": ""
+  },
+  "chunks": [
+    {
+      "id": "c0001",
+      "index": 0,
+      "text": "--- name: write-a-skill description: Create new agent skills with proper structure, progressive disclosure, and bundled resources. Use when user wants to create, write, or build a new skill. ---\n\n# Writing Skills\n\n## Process\n\n1. **Gather requirements** - ask user about: - What task/domain does the skill cover? - What specific use cases should it handle? - Does it need executable scripts or just instructions? - Any reference materials to include?\n\n2. **Draft the skill** - create: - SKILL.md with concise instructions - Additional reference files if content exceeds 500 lines - Utility scripts if deterministic operations needed\n\n3. **Review with user** - present draft and ask: - Does this cover your use cases? - Anything missing or unclear? - Should any section be more/less detailed?\n\n## Skill Structure\n\n``` skill-name/ ├── SKILL.md # Main instructions (required) ├── REFERENCE.md # Detailed docs (if needed) ├── EXAMPLES.md # Usage examples (if needed) └── scripts/ # Utility scripts (if needed) └── helper.js ```\n\n## SKILL.md Template\n\n```md --- name: skill-name description: Brief description of capability. Use when [specific triggers]. ---\n\n# Skill Name\n\n## Quick start\n\n[Minimal working example]\n\n## Workflows\n\n[Step-by-step processes with checklists for complex tasks]\n\n## Advanced features\n\n[Link to separate files: See [REFERENCE.md](REFERENCE.md)] ```\n\n## Description Requirements\n\nThe description is **the only thing your agent sees** when deciding which skill to load. It's surfaced in the system prompt alongside all other installed skills. Your agent reads these descriptions and picks the relevant skill based on the user's request.\n\n**Goal**: Give your agent just enough info to know:",
+      "chars": 1708
+    },
+    {
+      "id": "c0002",
+      "index": 1,
+      "text": "1. What capability this skill provides 2. When/why to trigger it (specific keywords, contexts, file types)\n\n**Format**:\n\n- Max 1024 chars - Write in third person - First sentence: what it does - Second sentence: \"Use when [specific triggers]\"\n\n**Good example**:\n\n``` Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when user mentions PDFs, forms, or document extraction. ```\n\n**Bad example**:\n\n``` Helps with documents. ```\n\nThe bad example gives your agent no way to distinguish this from other document skills.\n\n## When to Add Scripts\n\nAdd utility scripts when:\n\n- Operation is deterministic (validation, formatting) - Same code would be generated repeatedly - Errors need explicit handling\n\nScripts save tokens and improve reliability vs generated code.\n\n## When to Split Files\n\nSplit into separate files when:\n\n- SKILL.md exceeds 100 lines - Content has distinct domains (finance vs sales schemas) - Advanced features are rarely needed\n\n## Review Checklist\n\nAfter drafting, verify:\n\n- [ ] Description includes triggers (\"Use when...\") - [ ] SKILL.md under 100 lines - [ ] No time-sensitive info - [ ] Consistent terminology - [ ] Concrete examples included - [ ] References one level deep",
+      "chars": 1248
+    }
+  ]
+}

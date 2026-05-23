@@ -32,6 +32,8 @@ const RUNNERS = {
   memory: "memory-runner.mjs",
   patch: "patch-runner.mjs",
   overnight: "overnight-runner.mjs",
+  agents: "agent-registry-runner.mjs",
+  "skill-packs": "skill-pack-loader.mjs",
 };
 
 function usage() {
@@ -56,11 +58,13 @@ Usage:
   opencode-team memory ...
   opencode-team patch ...
   opencode-team overnight ...
+  opencode-team agents ...
+  opencode-team skill-packs ...
   opencode-team run ...        # alias for team runner
 
 Desktop usage:
-  Open any project in OpenCode Desktop and run /team-overnight, /team-plan,
-  /team-step, /team-review, /team-handoff, /team-audit, /team-browser, etc.
+  Open any project in OpenCode Desktop and run /team-all-in-one, /team-overnight,
+  /team-plan, /team-step, /team-review, /team-handoff, /team-audit, /team-browser, etc.
 
 Examples:
   opencode-team configure-models
@@ -69,6 +73,8 @@ Examples:
   opencode-team browser manual https://example.com --mark
   opencode-team chrome-bridge serve
   opencode-team overnight status
+  opencode-team agents list
+  opencode-team skill-packs list-skills
 `);
 }
 
@@ -117,10 +123,10 @@ function defaultRegistry() {
   return {
     version: VERSION,
     models: {
-      "minimax-m2.7": { label: "MiniMax M2.7", opencodeModel: "minimax/minimax-m2.7", tier: "cheap", capabilities: ["text", "coding", "bulk-edit"], contextBudgetTokens: 120000, softRotationRatio: 0.55, hardRotationRatio: 0.70 },
-      "deepseek-v4-pro": { label: "DeepSeek V4 Pro", opencodeModel: "deepseek/deepseek-v4-pro", tier: "strong", capabilities: ["text", "coding", "planning", "review"], contextBudgetTokens: 600000, softRotationRatio: 0.60, hardRotationRatio: 0.72 },
-      "qwen3.7-max": { label: "Qwen3.7 Max", opencodeModel: "qwen/qwen3.7-max", tier: "strong", capabilities: ["text", "long-context", "handoff", "planning"], contextBudgetTokens: 700000, softRotationRatio: 0.70, hardRotationRatio: 0.80 },
-      "gpt-5.5": { label: "GPT-5.5", opencodeModel: "openai/gpt-5.5", tier: "premium", capabilities: ["text", "review", "audit", "hard-debug", "vision"], contextBudgetTokens: 200000, softRotationRatio: 0.75, hardRotationRatio: 0.83 },
+      worker: { label: "A-zone worker (MiniMax M2.7 204K)", opencodeModel: "minimax/minimax-m2.7", tier: "budget", capabilities: ["text", "coding", "bulk-edit"], contextBudgetTokens: 204800, softRotationRatio: 0.80, hardRotationRatio: 0.85 },
+      supervisor: { label: "Supervisor/reviewer (DeepSeek V4 Pro 1M→768K usable)", opencodeModel: "deepseek/deepseek-v4-pro", tier: "strong", capabilities: ["text", "coding", "planning", "review"], contextBudgetTokens: 768000, softRotationRatio: 0.78, hardRotationRatio: 0.95 },
+      handoff: { label: "Handoff/research (Qwen3.7 Max 1M→768K usable)", opencodeModel: "qwen/qwen3.7-max", tier: "strong", capabilities: ["text", "long-context", "handoff", "planning"], contextBudgetTokens: 768000, softRotationRatio: 0.78, hardRotationRatio: 0.95 },
+      checkpoint: { label: "Checkpoint auditor (GPT-5.5 400K→200K rotate)", opencodeModel: "openai/gpt-5.5", tier: "premium", capabilities: ["text", "review", "audit", "hard-debug", "vision"], contextBudgetTokens: 200000, softRotationRatio: 0.75, hardRotationRatio: 0.90 },
     },
   };
 }
@@ -129,12 +135,13 @@ function defaultPolicy() {
     version: VERSION,
     budget: { dailySoftLimit: 0, dailyHardLimit: 0, premiumCallsSoftLimit: 8, premiumCallsHardLimit: 20, requireExplicitExecuteForPremium: true },
     roles: {
-      "chief-engineer": { defaultModel: "deepseek-v4-pro", fallbackModels: ["qwen3.7-max", "gpt-5.5"], premiumAllowed: true },
-      "minimax-coder": { defaultModel: "minimax-m2.7", fallbackModels: ["deepseek-v4-pro"], premiumAllowed: false },
-      tester: { defaultModel: "minimax-m2.7", fallbackModels: ["deepseek-v4-pro"], premiumAllowed: false },
-      reviewer: { defaultModel: "deepseek-v4-pro", fallbackModels: ["qwen3.7-max", "gpt-5.5"], premiumAllowed: true },
-      auditor: { defaultModel: "gpt-5.5", fallbackModels: ["qwen3.7-max", "deepseek-v4-pro"], premiumAllowed: true, checkpointOnly: true },
-      "handoff-writer": { defaultModel: "qwen3.7-max", fallbackModels: ["deepseek-v4-pro"], premiumAllowed: false },
+      "chief-engineer": { defaultModel: "supervisor", fallbackModels: ["handoff", "checkpoint"], premiumAllowed: true },
+      "a-zone-coder": { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false },
+      "minimax-coder": { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false },
+      tester: { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false },
+      reviewer: { defaultModel: "supervisor", fallbackModels: ["handoff", "checkpoint"], premiumAllowed: true },
+      auditor: { defaultModel: "checkpoint", fallbackModels: ["handoff", "supervisor"], premiumAllowed: true, checkpointOnly: true },
+      "handoff-writer": { defaultModel: "handoff", fallbackModels: ["supervisor"], premiumAllowed: false },
     },
     escalation: { afterFailures: 2, maxMiniMaxAttempts: 2, premiumEscalationReasons: ["final-audit", "repeated-failure", "claimed-but-missing"] },
     routingRules: [],
@@ -163,6 +170,7 @@ function initProject(project) {
   mkdirp(path.join(project, ".opencode", "team", "patches", "rejected"));
   mkdirp(path.join(project, ".opencode", "team", "patches", "logs"));
   mkdirp(path.join(project, ".opencode", "team", "overnight", "runs"));
+  mkdirp(path.join(project, ".opencode", "team", "skill-packs"));
 
   writeJsonIfMissing(path.join(project, ".opencode", "team", "state.json"), { version: VERSION, phase: "INIT", activeGoal: "", tasks: [], evidence: [], rotation: { pending: false } });
   writeIfMissing(path.join(project, ".opencode", "team", "handoff.md"), "# Handoff\n\nNo handoff has been written yet.\n");
@@ -173,6 +181,9 @@ function initProject(project) {
   writeJsonIfMissing(path.join(project, ".opencode", "team", "context", "index.json"), { version: VERSION, chunks: [] });
   writeJsonIfMissing(path.join(project, ".opencode", "team", "router", "model-registry.json"), getGlobalRegistry());
   writeJsonIfMissing(path.join(project, ".opencode", "team", "router", "policy.json"), getGlobalPolicy());
+  writeJsonIfMissing(path.join(project, ".opencode", "team", "agents.json"), { version: VERSION, agents: [] });
+  writeIfMissing(path.join(project, ".opencode", "team", "messages.jsonl"), "");
+  writeJsonIfMissing(path.join(project, ".opencode", "team", "skill-packs.json"), { version: VERSION, packs: [] });
 
   const gitignore = path.join(project, ".gitignore");
   if (!fs.existsSync(gitignore)) fs.writeFileSync(gitignore, "");
@@ -261,8 +272,8 @@ function installLsp(args = []) {
 }
 
 async function configureModels() {
-  console.log("\nConfigure model IDs for opencode-team-runtime.");
-  console.log("Use OpenCode model IDs exactly as they appear in your OpenCode provider setup, e.g. openai/gpt-5.5 or minimax/minimax-m2.7.");
+  console.log("\nConfigure opencode-team-runtime workflow and model routing.");
+  console.log("Use OpenCode model IDs exactly as they appear in your OpenCode provider setup, e.g. openai/gpt-5.5, minimax/minimax-m2.7, deepseek/deepseek-v4-pro, or qwen/qwen3.7-max.");
   const pipedAnswers = process.stdin.isTTY ? null : fs.readFileSync(0, "utf8").split(/\r?\n/);
   let pipedIndex = 0;
   const rl = process.stdin.isTTY ? readline.createInterface({ input: process.stdin, output: process.stdout }) : null;
@@ -277,41 +288,60 @@ async function configureModels() {
   };
   const registry = getGlobalRegistry();
   const current = registry.models || defaultRegistry().models;
-  const minimax = await ask("MiniMax coder model", current["minimax-m2.7"]?.opencodeModel || "minimax/minimax-m2.7");
-  const deepseek = await ask("DeepSeek/Qwen/strong planner model", current["deepseek-v4-pro"]?.opencodeModel || "deepseek/deepseek-v4-pro");
-  const qwen = await ask("Long-context handoff model", current["qwen3.7-max"]?.opencodeModel || "qwen/qwen3.7-max");
-  const premium = await ask("Premium auditor/checkpoint model", current["gpt-5.5"]?.opencodeModel || "openai/gpt-5.5");
+  console.log("\nWorkflow mode:");
+  console.log("  1) All in one - Desktop托管入口: plan + work + B-zone review + checkpoint + handoff (recommended)");
+  console.log("  2) Lean - chief engineer + worker + reviewer, lighter checkpoint use");
+  console.log("  3) Research-heavy - guided flow plus stronger research/handoff routing");
+  const modeAnswer = await ask("Workflow mode", "1");
+  const workflowMode = modeAnswer === "2" || /^lean$/i.test(modeAnswer) ? "lean" : modeAnswer === "3" || /^research/i.test(modeAnswer) ? "research-heavy" : "all-in-one";
+  const worker = await ask("A-zone worker model for narrow implementation", current.worker?.opencodeModel || current["minimax-m2.7"]?.opencodeModel || "minimax/minimax-m2.7");
+  const supervisor = await ask("Supervisor/reviewer model", current.supervisor?.opencodeModel || current["deepseek-v4-pro"]?.opencodeModel || "deepseek/deepseek-v4-pro");
+  const handoff = await ask("Long-context handoff/research synthesis model", current.handoff?.opencodeModel || current["qwen3.7-max"]?.opencodeModel || "qwen/qwen3.7-max");
+  const checkpoint = await ask("Premium checkpoint/auditor model", current.checkpoint?.opencodeModel || current["gpt-5.5"]?.opencodeModel || "openai/gpt-5.5");
   if (rl) rl.close();
   registry.models = {
     ...current,
-    "minimax-m2.7": { ...(current["minimax-m2.7"] || {}), label: "MiniMax coder", opencodeModel: minimax, tier: "cheap" },
-    "deepseek-v4-pro": { ...(current["deepseek-v4-pro"] || {}), label: "Strong planner/reviewer", opencodeModel: deepseek, tier: "strong" },
-    "qwen3.7-max": { ...(current["qwen3.7-max"] || {}), label: "Long-context handoff", opencodeModel: qwen, tier: "strong" },
-    "gpt-5.5": { ...(current["gpt-5.5"] || {}), label: "Premium checkpoint/auditor", opencodeModel: premium, tier: "premium" },
+    worker: { ...(current.worker || {}), label: "A-zone worker", opencodeModel: worker, tier: "budget" },
+    supervisor: { ...(current.supervisor || {}), label: "Supervisor/reviewer", opencodeModel: supervisor, tier: "strong" },
+    handoff: { ...(current.handoff || {}), label: "Long-context handoff", opencodeModel: handoff, tier: "strong" },
+    checkpoint: { ...(current.checkpoint || {}), label: "Premium checkpoint/auditor", opencodeModel: checkpoint, tier: "premium" },
   };
+  registry.workflowMode = workflowMode;
   writeJson(globalRegistryFile(), registry);
-  writeJson(globalPolicyFile(), getGlobalPolicy());
+  const policy = getGlobalPolicy();
+  policy.workflowMode = workflowMode;
+  policy.roles = { ...defaultPolicy().roles, ...(policy.roles || {}) };
+  policy.roles["chief-engineer"] = { defaultModel: "supervisor", fallbackModels: workflowMode === "research-heavy" ? ["handoff", "checkpoint"] : ["checkpoint"], premiumAllowed: true };
+  policy.roles["a-zone-coder"] = { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false };
+  policy.roles["minimax-coder"] = { defaultModel: "worker", fallbackModels: ["supervisor"], premiumAllowed: false };
+  policy.roles.tester = { defaultModel: workflowMode === "lean" ? "worker" : "supervisor", fallbackModels: ["worker"], premiumAllowed: false };
+  policy.roles.reviewer = { defaultModel: "supervisor", fallbackModels: workflowMode === "lean" ? [] : ["handoff", "checkpoint"], premiumAllowed: true };
+  policy.roles.auditor = { defaultModel: "checkpoint", fallbackModels: ["handoff", "supervisor"], premiumAllowed: true, checkpointOnly: true };
+  policy.roles["handoff-writer"] = { defaultModel: "handoff", fallbackModels: ["supervisor"], premiumAllowed: false };
+  writeJson(globalPolicyFile(), policy);
 
   const cfg = readJsonc(OPENCODE_CONFIG_FILE, { $schema: "https://opencode.ai/config.json" });
   cfg.$schema ||= "https://opencode.ai/config.json";
   cfg.agent ||= {};
   const setAgent = (name, model) => { cfg.agent[name] = { ...(cfg.agent[name] || {}), model }; };
-  setAgent("chief-engineer", deepseek);
-  setAgent("overnight-supervisor", deepseek);
-  setAgent("research-scout", deepseek);
-  setAgent("research-reviewer", deepseek);
-  setAgent("minimax-coder", minimax);
-  setAgent("tester", minimax);
-  setAgent("browser-actor", minimax);
-  setAgent("browser-perception", deepseek);
-  setAgent("reviewer", deepseek);
-  setAgent("auditor", premium);
-  setAgent("visual-reviewer", premium);
-  setAgent("handoff-writer", qwen);
+  setAgent("chief-engineer", supervisor);
+  setAgent("overnight-supervisor", supervisor);
+  setAgent("research-scout", workflowMode === "research-heavy" ? handoff : supervisor);
+  setAgent("research-reviewer", supervisor);
+  setAgent("a-zone-coder", worker);
+  setAgent("minimax-coder", worker);
+  setAgent("tester", workflowMode === "lean" ? worker : supervisor);
+  setAgent("browser-actor", worker);
+  setAgent("browser-perception", supervisor);
+  setAgent("reviewer", supervisor);
+  setAgent("auditor", checkpoint);
+  setAgent("visual-reviewer", checkpoint);
+  setAgent("handoff-writer", handoff);
   writeJsonc(OPENCODE_CONFIG_FILE, cfg);
 
   console.log(`\nSaved global model registry: ${globalRegistryFile()}`);
   console.log(`Updated OpenCode global config agent overrides: ${OPENCODE_CONFIG_FILE}`);
+  console.log(`Workflow mode: ${workflowMode}`);
   console.log("New projects initialized with opencode-team init will inherit this model registry.");
 }
 
