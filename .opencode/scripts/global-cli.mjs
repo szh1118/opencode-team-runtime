@@ -404,7 +404,7 @@ async function configureModels() {
 
   cfg.$schema ||= "https://opencode.ai/config.json"
   cfg.agent ||= {}
-  const setAgent = (name, model) => { cfg.agent[name] = { ...(cfg.agent[name] || {}), model } }
+  const setAgent = (name, model) => { cfg.agent[name] = { ...(cfg.agent[name] || {}), model, hidden: true } }
   setAgent("chief-engineer", supervisor)
   setAgent("overnight-supervisor", supervisor)
   setAgent("research-scout", handoff)
