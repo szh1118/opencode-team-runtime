@@ -274,22 +274,43 @@ function installLsp(args = []) {
 function discoverModels(cfg) {
   const found = new Set()
   if (cfg.model) found.add(cfg.model)
+
+  // Explicit opencode.jsonc provider config
   if (cfg.provider) {
     for (const [name, p] of Object.entries(cfg.provider)) {
       if (p.models) {
-        for (const id of Object.keys(p.models)) { found.add(`${name}/${id}`) }
+        for (const id of Object.keys(p.models)) found.add(`${name}/${id}`)
       }
       if (p.options?.model) found.add(`${name}/${p.options.model}`)
-      // Explicitly configured provider — list its namespace
-      if (!p.models && !p.options?.model) found.add(`${name}/`)
     }
   }
-  // Built-in opencode providers may not appear in config file
-  // (configured via UI settings without JSON entries)
-  const builtinProviders = ["deepseek", "minimax", "openai", "anthropic", "google", "xai", "groq", "together", "perplexity", "mistral", "cohere", "meta", "amazon", "cerebras"]
-  for (const name of builtinProviders) {
-    if (!cfg.provider?.[name]) found.add(`${name}/`)
+
+  // Auth-configured providers (opencode UI settings, not in JSONC)
+  const authFile = path.join(process.env.HOME || "", ".local", "share", "opencode", "auth-v2.json")
+  const authFallback = path.join(process.env.HOME || "", ".local", "share", "opencode", "auth.json")
+  let auth = {}
+  try { if (fs.existsSync(authFile)) auth = JSON.parse(fs.readFileSync(authFile, "utf8")) }
+  catch { try { if (fs.existsSync(authFallback)) auth = JSON.parse(fs.readFileSync(authFallback, "utf8")) } catch {} }
+  const configuredProviders = new Set(Object.keys(cfg.provider || {}))
+  if (auth.accounts) {
+    for (const a of Object.values(auth.accounts)) {
+      if (a.serviceID) configuredProviders.add(a.serviceID)
+    }
   }
+
+  // Read models cache for auth-configured providers
+  const modelsCache = path.join(process.env.HOME || "", ".cache", "opencode", "models.json")
+  let cache = {}
+  try { if (fs.existsSync(modelsCache)) cache = JSON.parse(fs.readFileSync(modelsCache, "utf8")) } catch {}
+
+  for (const provider of configuredProviders) {
+    if (cache[provider]?.models) {
+      for (const id of Object.keys(cache[provider].models)) found.add(`${provider}/${id}`)
+    } else if (!cfg.provider?.[provider]?.models) {
+      found.add(`${provider}/`)
+    }
+  }
+
   if (cfg.agent) {
     for (const a of Object.values(cfg.agent)) {
       if (a.model) found.add(a.model)
