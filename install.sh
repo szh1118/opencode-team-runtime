@@ -105,15 +105,13 @@ read_tty_line() {
   printf -v "$__var" '%s' "$answer"
 }
 
-select_option() {
-  local prompt="$1"; local __var="$2"; local default="${3:-1}"; shift 3 || true
+tty_select() {
+  local __var="$1" default="${2:-1}"; shift 2 || true
   if ! tty_available; then printf -v "$__var" '%s' "$default"; return 0; fi
-  printf "%s\n" "$prompt" >&9
-  local i=1
-  for opt in "$@"; do printf "  %s) %s\n" "$i" "$opt" >&9; i=$((i+1)); done
-  local answer
-  read_tty_line answer "  [$default] " || true
-  printf -v "$__var" '%s' "${answer:-$default}"
+  local _reply=""
+  select _ in "$@"; do _reply="$REPLY"; break; done <&9 2>&9
+  printf -v "$__var" '%s' "${_reply:-$default}"
+  printf "\n" >&9
 }
 
 choose_language() {
@@ -130,12 +128,13 @@ choose_language() {
     return 0
   fi
   local ans
-  select_option "请选择安装语言 / Select installer language:" ans "1" "中文" "English"
+  echo "" >&9
+  echo "请选择安装语言 / Select installer language:" >&9
+  tty_select ans "1" "中文" "English"
   case "${ans:-1}" in
     2) LANG_CHOICE="en" ;;
     *) LANG_CHOICE="zh" ;;
   esac
-  echo "" >&9
 }
 
 msg() {
@@ -282,21 +281,23 @@ fi
 if can_prompt; then
   if [[ "$LSP_EXPLICIT" != "1" ]]; then
     ans_lsp=""
+    echo "" >&9
     msg "是否启用 OpenCode LSP 并安装常用语言服务器？" "Enable OpenCode LSP and install common language servers?" >&9
     if [[ "$LANG_CHOICE" == "en" ]]; then
-      select_option "" ans_lsp "1" "Yes (recommended)" "No"
+      tty_select ans_lsp "1" "Yes (recommended)" "No"
     else
-      select_option "" ans_lsp "1" "是 (推荐)" "否"
+      tty_select ans_lsp "1" "是 (推荐)" "否"
     fi
     INSTALL_LSP=$([[ "$ans_lsp" == "2" ]] && echo "0" || echo "1")
   fi
   if [[ "$BROWSER_EXPLICIT" != "1" ]]; then
     ans_browser=""
+    echo "" >&9
     msg "是否安装 CloakBrowser / Playwright 浏览器依赖？" "Install CloakBrowser / Playwright browser dependencies?" >&9
     if [[ "$LANG_CHOICE" == "en" ]]; then
-      select_option "" ans_browser "1" "Yes (recommended)" "No"
+      tty_select ans_browser "1" "Yes (recommended)" "No"
     else
-      select_option "" ans_browser "1" "是 (推荐)" "否"
+      tty_select ans_browser "1" "是 (推荐)" "否"
     fi
     INSTALL_BROWSER_DEPS=$([[ "$ans_browser" == "2" ]] && echo "0" || echo "1")
   fi
@@ -304,11 +305,12 @@ fi
 
 if [[ "$CONFIGURE_MODELS" == "auto" ]] && can_prompt; then
   ans_cfg=""
+  echo "" >&9
   msg "现在配置团队工作流和各岗位使用的模型？" "Configure team workflow mode and role models now?" >&9
   if [[ "$LANG_CHOICE" == "en" ]]; then
-    select_option "" ans_cfg "2" "Yes" "No (skip)"
+    tty_select ans_cfg "2" "Yes" "No (skip)"
   else
-    select_option "" ans_cfg "2" "是" "否 (跳过)"
+    tty_select ans_cfg "2" "是" "否 (跳过)"
   fi
   CONFIGURE_MODELS=$([[ "$ans_cfg" == "1" ]] && echo "1" || echo "0")
 fi
@@ -458,11 +460,12 @@ fi
 if [[ "$CONFIGURE_MODELS" == "1" ]]; then
   echo "" >&9
   wf_mode="all-in-one" ans_wf=""
+  echo "" >&9
   msg "选择工作流模式:" "Select workflow mode:" >&9
   if [[ "$LANG_CHOICE" == "en" ]]; then
-    select_option "" ans_wf "1" "All in one - Desktop one-click entrusted (recommended)" "Lean - lighter process" "Research-heavy - enhanced research"
+    tty_select ans_wf "1" "All in one - Desktop one-click entrusted (recommended)" "Lean - lighter process" "Research-heavy - enhanced research"
   else
-    select_option "" ans_wf "1" "All in one - Desktop 一键托管 (推荐)" "Lean - 精简流程" "Research-heavy - 强化研究"
+    tty_select ans_wf "1" "All in one - Desktop 一键托管 (推荐)" "Lean - 精简流程" "Research-heavy - 强化研究"
   fi
   case "${ans_wf:-1}" in
     2) wf_mode="lean" ;;
@@ -471,6 +474,7 @@ if [[ "$CONFIGURE_MODELS" == "1" ]]; then
   esac
 
   worker_model="" supervisor_model="" handoff_model="" checkpoint_model=""
+  echo "" >&9
   read_tty_line worker_model "A-zone 编码模型 [minimax/minimax-m2.7]: " || true
   worker_model="${worker_model:-minimax/minimax-m2.7}"
   read_tty_line supervisor_model "总工/审核模型 [deepseek/deepseek-v4-pro]: " || true
