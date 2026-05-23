@@ -324,19 +324,32 @@ async function configureModels() {
     return (String(answer || "").trim() || def).trim()
   }
 
-  const pickModel = async (role, roleKey) => {
-    const fallback = current[roleKey]?.opencodeModel || ""
+  const smartDefault = (roleKey, defRole) => {
+    const cur = current[roleKey]?.opencodeModel
+    if (cur && discovered.includes(cur)) return cur
+    if (discovered.length > 0) {
+      if (defRole !== null) {
+        const idx = discovered.findIndex(m => m.includes(defRole))
+        if (idx >= 0) return discovered[idx]
+      }
+      return discovered[0]
+    }
+    return cur || ""
+  }
+
+  const pickModel = async (role, roleKey, hintSubstring) => {
+    const fallback = smartDefault(roleKey, hintSubstring)
     const answer = await ask(`\n${role} model`, fallback)
-    if (!answer || answer === "s") return fallback
+    if (!answer || answer === "s") return fallback || discovered[0] || ""
     const idx = parseInt(answer)
     if (idx >= 1 && idx <= discovered.length) return discovered[idx - 1]
     return answer
   }
 
-  const worker = await pickModel("A-zone worker (narrow implementation)", "worker")
-  const supervisor = await pickModel("Supervisor/reviewer", "supervisor")
-  const handoff = await pickModel("Long-context handoff/research", "handoff")
-  const checkpoint = await pickModel("Premium checkpoint/auditor", "checkpoint")
+  const worker = await pickModel("A-zone worker (narrow implementation)", "worker", "flash")
+  const supervisor = await pickModel("Supervisor/reviewer", "supervisor", "deepseek")
+  const handoff = await pickModel("Long-context handoff/research", "handoff", "qwen")
+  const checkpoint = await pickModel("Premium checkpoint/auditor", "checkpoint", "gpt")
   if (rl) rl.close()
 
   registry.models = {
