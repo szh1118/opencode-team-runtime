@@ -276,14 +276,19 @@ function discoverModels(cfg) {
   if (cfg.model) found.add(cfg.model)
   if (cfg.provider) {
     for (const [name, p] of Object.entries(cfg.provider)) {
-      let hasModels = false
       if (p.models) {
-        for (const id of Object.keys(p.models)) { found.add(`${name}/${id}`); hasModels = true }
+        for (const id of Object.keys(p.models)) { found.add(`${name}/${id}`) }
       }
-      if (p.options?.model) { found.add(`${name}/${p.options.model}`); hasModels = true }
-      // Provider exists but no explicit model list: list it as a namespace
-      if (!hasModels) found.add(`${name}/`)
+      if (p.options?.model) found.add(`${name}/${p.options.model}`)
+      // Explicitly configured provider — list its namespace
+      if (!p.models && !p.options?.model) found.add(`${name}/`)
     }
+  }
+  // Built-in opencode providers may not appear in config file
+  // (configured via UI settings without JSON entries)
+  const builtinProviders = ["deepseek", "minimax", "openai", "anthropic", "google", "xai", "groq", "together", "perplexity", "mistral", "cohere", "meta", "amazon", "cerebras"]
+  for (const name of builtinProviders) {
+    if (!cfg.provider?.[name]) found.add(`${name}/`)
   }
   if (cfg.agent) {
     for (const a of Object.values(cfg.agent)) {

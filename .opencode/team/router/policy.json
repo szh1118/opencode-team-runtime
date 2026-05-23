@@ -1,0 +1,75 @@
+{
+  "version": "0.11.3-p8.7",
+  "budget": {
+    "dailySoftLimit": 0,
+    "dailyHardLimit": 0,
+    "premiumCallsSoftLimit": 8,
+    "premiumCallsHardLimit": 20,
+    "requireExplicitExecuteForPremium": true
+  },
+  "roles": {
+    "chief-engineer": {
+      "defaultModel": "supervisor",
+      "fallbackModels": [
+        "handoff",
+        "checkpoint"
+      ],
+      "premiumAllowed": true
+    },
+    "a-zone-coder": {
+      "defaultModel": "worker",
+      "fallbackModels": [
+        "supervisor"
+      ],
+      "premiumAllowed": false
+    },
+    "minimax-coder": {
+      "defaultModel": "worker",
+      "fallbackModels": [
+        "supervisor"
+      ],
+      "premiumAllowed": false
+    },
+    "tester": {
+      "defaultModel": "supervisor",
+      "fallbackModels": [
+        "worker"
+      ],
+      "premiumAllowed": false
+    },
+    "reviewer": {
+      "defaultModel": "supervisor",
+      "fallbackModels": [
+        "handoff",
+        "checkpoint"
+      ],
+      "premiumAllowed": true
+    },
+    "auditor": {
+      "defaultModel": "checkpoint",
+      "fallbackModels": [
+        "handoff",
+        "supervisor"
+      ],
+      "premiumAllowed": true,
+      "checkpointOnly": true
+    },
+    "handoff-writer": {
+      "defaultModel": "handoff",
+      "fallbackModels": [
+        "supervisor"
+      ],
+      "premiumAllowed": false
+    }
+  },
+  "escalation": {
+    "afterFailures": 2,
+    "maxMiniMaxAttempts": 2,
+    "premiumEscalationReasons": [
+      "final-audit",
+      "repeated-failure",
+      "claimed-but-missing"
+    ]
+  },
+  "routingRules": []
+}

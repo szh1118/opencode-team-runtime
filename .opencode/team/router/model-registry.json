@@ -1,0 +1,61 @@
+{
+  "version": "0.11.3-p8.7",
+  "models": {
+    "worker": {
+      "label": "A-zone worker",
+      "opencodeModel": "amazon/",
+      "tier": "budget",
+      "capabilities": [
+        "text",
+        "coding",
+        "bulk-edit"
+      ],
+      "contextBudgetTokens": 204800,
+      "softRotationRatio": 0.8,
+      "hardRotationRatio": 0.85
+    },
+    "supervisor": {
+      "label": "Supervisor/reviewer",
+      "opencodeModel": "deepseek/",
+      "tier": "strong",
+      "capabilities": [
+        "text",
+        "coding",
+        "planning",
+        "review"
+      ],
+      "contextBudgetTokens": 768000,
+      "softRotationRatio": 0.78,
+      "hardRotationRatio": 0.95
+    },
+    "handoff": {
+      "label": "Long-context handoff",
+      "opencodeModel": "amazon/",
+      "tier": "strong",
+      "capabilities": [
+        "text",
+        "long-context",
+        "handoff",
+        "planning"
+      ],
+      "contextBudgetTokens": 768000,
+      "softRotationRatio": 0.78,
+      "hardRotationRatio": 0.95
+    },
+    "checkpoint": {
+      "label": "Premium checkpoint/auditor",
+      "opencodeModel": "amazon/",
+      "tier": "premium",
+      "capabilities": [
+        "text",
+        "review",
+        "audit",
+        "hard-debug",
+        "vision"
+      ],
+      "contextBudgetTokens": 200000,
+      "softRotationRatio": 0.75,
+      "hardRotationRatio": 0.9
+    }
+  }
+}

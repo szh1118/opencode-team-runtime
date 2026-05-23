@@ -1,0 +1,44 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "chief-engineer": {
+      "model": "deepseek/"
+    },
+    "overnight-supervisor": {
+      "model": "deepseek/"
+    },
+    "research-scout": {
+      "model": "amazon/"
+    },
+    "research-reviewer": {
+      "model": "deepseek/"
+    },
+    "a-zone-coder": {
+      "model": "amazon/"
+    },
+    "minimax-coder": {
+      "model": "amazon/"
+    },
+    "tester": {
+      "model": "deepseek/"
+    },
+    "browser-actor": {
+      "model": "amazon/"
+    },
+    "browser-perception": {
+      "model": "deepseek/"
+    },
+    "reviewer": {
+      "model": "deepseek/"
+    },
+    "auditor": {
+      "model": "amazon/"
+    },
+    "visual-reviewer": {
+      "model": "amazon/"
+    },
+    "handoff-writer": {
+      "model": "amazon/"
+    }
+  }
+}
