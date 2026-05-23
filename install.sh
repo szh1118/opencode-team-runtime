@@ -379,12 +379,12 @@ cfg.mcp.cloakbrowser = mcp('cloakbrowser-mcp.mjs', true, {
   CLOAKBROWSER_MANUAL_TIMEOUT_MS: '600000',
 });
 cfg.mcp['browser-bridge'] = mcp('browser-bridge-mcp.mjs', true, { OPENCODE_BROWSER_BRIDGE_PORT: '37987', OPENCODE_BROWSER_BRIDGE_TOKEN: 'dev-local' });
-cfg.mcp.research = mcp('research-mcp.mjs');
-cfg.mcp.context = mcp('context-mcp.mjs');
-cfg.mcp.router = mcp('router-mcp.mjs');
-cfg.mcp.memory = mcp('memory-mcp.mjs');
-cfg.mcp.patch = mcp('patch-mcp.mjs');
-cfg.mcp.overnight = mcp('overnight-mcp.mjs');
+cfg.mcp.research = mcp('research-mcp.mjs', true);
+cfg.mcp.context = mcp('context-mcp.mjs', true);
+cfg.mcp.router = mcp('router-mcp.mjs', true);
+cfg.mcp.memory = mcp('memory-mcp.mjs', true);
+cfg.mcp.patch = mcp('patch-mcp.mjs', true);
+cfg.mcp.overnight = mcp('overnight-mcp.mjs', true);
 if (installLsp) {
   cfg.lsp = cfg.lsp === false ? true : (cfg.lsp ?? true);
   cfg.permission ||= {};
