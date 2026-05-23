@@ -105,12 +105,15 @@ read_tty_line() {
   printf -v "$__var" '%s' "$answer"
 }
 
-tty_select() {
+tty_menu() {
   local __var="$1" default="${2:-1}"; shift 2 || true
   if ! tty_available; then printf -v "$__var" '%s' "$default"; return 0; fi
-  local _reply=""
-  select _ in "$@"; do _reply="$REPLY"; break; done < "$TTY_DEVICE"
-  printf -v "$__var" '%s' "${_reply:-$default}"
+  local i=1
+  for opt in "$@"; do printf "  %s) %s\n" "$i" "$opt">&9; i=$((i+1)); done
+  printf "  请选择 [%s]: " "$default" >&9
+  local answer
+  IFS= read -r answer < "$TTY_DEVICE" || answer=""
+  printf -v "$__var" '%s' "${answer:-$default}"
   printf "\n" >&9
 }
 
@@ -130,7 +133,7 @@ choose_language() {
   local ans
   echo "" >&9
   echo "请选择安装语言 / Select installer language:" >&9
-  tty_select ans "1" "中文" "English"
+  tty_menu ans "1" "中文" "English"
   case "${ans:-1}" in
     2) LANG_CHOICE="en" ;;
     *) LANG_CHOICE="zh" ;;
@@ -284,9 +287,9 @@ if can_prompt; then
     echo "" >&9
     msg "是否启用 OpenCode LSP 并安装常用语言服务器？" "Enable OpenCode LSP and install common language servers?" >&9
     if [[ "$LANG_CHOICE" == "en" ]]; then
-      tty_select ans_lsp "1" "Yes (recommended)" "No"
+      tty_menu ans_lsp "1" "Yes (recommended)" "No"
     else
-      tty_select ans_lsp "1" "是 (推荐)" "否"
+      tty_menu ans_lsp "1" "是 (推荐)" "否"
     fi
     INSTALL_LSP=$([[ "$ans_lsp" == "2" ]] && echo "0" || echo "1")
   fi
@@ -295,9 +298,9 @@ if can_prompt; then
     echo "" >&9
     msg "是否安装 CloakBrowser / Playwright 浏览器依赖？" "Install CloakBrowser / Playwright browser dependencies?" >&9
     if [[ "$LANG_CHOICE" == "en" ]]; then
-      tty_select ans_browser "1" "Yes (recommended)" "No"
+      tty_menu ans_browser "1" "Yes (recommended)" "No"
     else
-      tty_select ans_browser "1" "是 (推荐)" "否"
+      tty_menu ans_browser "1" "是 (推荐)" "否"
     fi
     INSTALL_BROWSER_DEPS=$([[ "$ans_browser" == "2" ]] && echo "0" || echo "1")
   fi
@@ -308,9 +311,9 @@ if [[ "$CONFIGURE_MODELS" == "auto" ]] && can_prompt; then
   echo "" >&9
   msg "现在配置团队工作流和各岗位使用的模型？" "Configure team workflow mode and role models now?" >&9
   if [[ "$LANG_CHOICE" == "en" ]]; then
-    tty_select ans_cfg "2" "Yes" "No (skip)"
+    tty_menu ans_cfg "2" "Yes" "No (skip)"
   else
-    tty_select ans_cfg "2" "是" "否 (跳过)"
+    tty_menu ans_cfg "2" "是" "否 (跳过)"
   fi
   CONFIGURE_MODELS=$([[ "$ans_cfg" == "1" ]] && echo "1" || echo "0")
 fi
@@ -469,9 +472,9 @@ if [[ "$CONFIGURE_MODELS" == "1" ]]; then
     echo "" >&9
     msg "选择工作流模式:" "Select workflow mode:" >&9
     if [[ "$LANG_CHOICE" == "en" ]]; then
-      tty_select ans_wf "1" "All in one - Desktop one-click entrusted (recommended)" "Lean - lighter process" "Research-heavy - enhanced research"
+      tty_menu ans_wf "1" "All in one - Desktop one-click entrusted (recommended)" "Lean - lighter process" "Research-heavy - enhanced research"
     else
-      tty_select ans_wf "1" "All in one - Desktop 一键托管 (推荐)" "Lean - 精简流程" "Research-heavy - 强化研究"
+      tty_menu ans_wf "1" "All in one - Desktop 一键托管 (推荐)" "Lean - 精简流程" "Research-heavy - 强化研究"
     fi
     case "${ans_wf:-1}" in
       2) wf_mode="lean" ;;
